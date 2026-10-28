@@ -9,7 +9,7 @@ Start with `git status` and `git diff HEAD` (before the first commit, review the
 
 Report only these, each confirmed by reading the code:
 
-1. **Reuse**: new function, schema, dependency, component, route or fixture that duplicates or nearly duplicates existing code. Grep for it and cite both locations.
+1. **Reuse**: new function, schema, dependency, component, route or fixture that duplicates or nearly duplicates existing code. Grep for it and cite both locations. Includes a frontend component that rebuilds one in `src/components/ui/`, and any new `frontend/package.json` entry (`shadcn add` installs packages itself) the task didn't ask for.
 2. **Bloat**: code the task did not need: speculative abstractions, config flags, single-use wrappers, unused params, dead or commented-out code, comments that restate the code, unrelated refactors or renames.
 3. **Security**: route without `AdminDep`/`DeviceDep`, unbounded input/list/query, secret in logs, responses, errors or `NEXT_PUBLIC_*`, raw SQL built from strings, `process.env` outside `src/lib/api/client.ts`, a Client Component receiving more data than it renders, a mutating Server Action.
 4. **Contract**: breaking change to `/api/v1` device endpoints, backend schema/route change without regenerated `frontend/openapi.json`, table change without a migration, naive datetime, unit missing from a field name.

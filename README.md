@@ -2,7 +2,7 @@
 
 Ambient conditions of the brewing room(s) and yeast insights, fed by ESP32 / in-vessel sensors.
 
-**Stack:** FastAPI · SQLModel · Alembic · Postgres · Next.js · Tailwind · Docker
+**Stack:** FastAPI · SQLModel · Alembic · Postgres · Next.js · Tailwind · shadcn/ui · Docker
 
 ## Quick start
 

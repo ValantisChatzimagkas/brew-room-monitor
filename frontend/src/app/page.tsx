@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getApi, type Device, type Metric, type Reading } from "@/lib/api/client";
 
 const METRIC_LABEL: Record<Metric, string> = {
@@ -14,7 +15,7 @@ export default function Home() {
   return (
     <main className="mx-auto w-full max-w-4xl p-6">
       <h1 className="mb-6 text-2xl font-semibold">Brew Room Monitor</h1>
-      <Suspense fallback={<p className="text-zinc-500">Loading sensors…</p>}>
+      <Suspense fallback={<p className="text-muted-foreground">Loading sensors…</p>}>
         <DeviceList />
       </Suspense>
     </main>
@@ -30,7 +31,7 @@ async function DeviceList() {
   if (devices.error || readings.error) throw new Error("Failed to load data from the API");
 
   if (devices.data.length === 0) {
-    return <p className="text-zinc-500">No devices yet. Register one via POST /api/v1/devices.</p>;
+    return <p className="text-muted-foreground">No devices yet. Register one via POST /api/v1/devices.</p>;
   }
 
   return (
@@ -44,23 +45,31 @@ async function DeviceList() {
 
 function DeviceCard({ device, latest }: { device: Device; latest: Reading[] }) {
   return (
-    <li className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-      <h2 className="font-medium">{device.name}</h2>
-      <p className="mb-3 text-sm text-zinc-500">
-        {device.kind} {device.location && `· ${device.location}`}
-      </p>
-      {latest.length === 0 ? (
-        <p className="text-sm text-zinc-500">No readings yet</p>
-      ) : (
-        <dl className="grid grid-cols-2 gap-1 text-sm">
-          {latest.map((r) => (
-            <div key={r.metric} className="contents">
-              <dt className="text-zinc-500">{METRIC_LABEL[r.metric]}</dt>
-              <dd className="tabular-nums">{r.value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
+    <li>
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h2>{device.name}</h2>
+          </CardTitle>
+          <CardDescription>
+            {device.kind} {device.location && `· ${device.location}`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {latest.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No readings yet</p>
+          ) : (
+            <dl className="grid grid-cols-2 gap-1 text-sm">
+              {latest.map((r) => (
+                <div key={r.metric} className="contents">
+                  <dt className="text-muted-foreground">{METRIC_LABEL[r.metric]}</dt>
+                  <dd className="tabular-nums">{r.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </CardContent>
+      </Card>
     </li>
   );
 }

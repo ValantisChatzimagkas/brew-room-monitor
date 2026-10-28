@@ -8,7 +8,8 @@
       "Edit(/frontend/openapi.json)",
       "Edit(/frontend/src/lib/api/schema.d.ts)",
       "Edit(/backend/uv.lock)",
-      "Edit(/frontend/pnpm-lock.yaml)"
+      "Edit(/frontend/pnpm-lock.yaml)",
+      "Bash(*shadcn* add */*)"
     ]
   },
   "hooks": {
