@@ -1,0 +1,25 @@
+name: Audit
+
+# Separate from CI: a newly published CVE shouldn't block unrelated work,
+# and the weekly run catches CVEs in deps that haven't changed.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: pnpm/action-setup@v4
+        with: { package_json_file: frontend/package.json }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: make audit

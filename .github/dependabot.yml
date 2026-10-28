@@ -1,0 +1,25 @@
+version: 2
+# Grouped weekly PRs; cooldown skips brand-new releases (hijacked versions are usually pulled fast).
+# Security updates ignore both and open immediately.
+updates:
+  - package-ecosystem: uv
+    directory: /backend
+    schedule: { interval: weekly }
+    cooldown: { default-days: 3 }
+    groups: { backend: { patterns: ["*"] } }
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule: { interval: weekly }
+    cooldown: { default-days: 3 }
+    groups: { frontend: { patterns: ["*"] } }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    groups: { actions: { patterns: ["*"] } }
+  - package-ecosystem: docker
+    directories: [/backend, /frontend]
+    schedule: { interval: weekly }
+    groups: { docker: { patterns: ["*"] } }
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule: { interval: weekly }

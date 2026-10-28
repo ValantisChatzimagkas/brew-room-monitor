@@ -1,0 +1,6 @@
+# Skip versions published <1 day ago: most hijacked npm releases are pulled within hours.
+minimumReleaseAge: 1440
+
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver

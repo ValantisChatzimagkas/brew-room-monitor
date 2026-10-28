@@ -1,0 +1,36 @@
+# Local full stack: `docker compose up --build`
+# Dev with hot reload: `docker compose up db` + run backend/frontend natively (see README).
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: brew
+      POSTGRES_PASSWORD: brew
+      POSTGRES_DB: brew
+    ports: ["127.0.0.1:5432:5432"]  # dev creds: never reachable from the LAN
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brew -d brew"]
+      interval: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://brew:brew@db:5432/brew
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?set ADMIN_TOKEN in .env}
+      ENVIRONMENT: local
+    ports: ["8000:8000"]  # ESP32s on the LAN post here
+    depends_on:
+      db: { condition: service_healthy }
+
+  frontend:
+    build: ./frontend
+    environment:
+      API_URL: http://backend:8000
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+    ports: ["3000:3000"]
+    depends_on: [backend]
+
+volumes:
+  pgdata:

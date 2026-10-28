@@ -1,0 +1,529 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Brew Room Monitor API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Health",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/devices": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "List Devices",
+        "operationId": "list_devices",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DevicePublic"
+                  },
+                  "type": "array",
+                  "title": "Response List Devices"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Create Device",
+        "operationId": "create_device",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCreated"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/readings": {
+      "post": {
+        "tags": [
+          "readings"
+        ],
+        "summary": "Ingest Readings",
+        "description": "Device-authenticated batch ingest (ESP32 / capsule sensors).",
+        "operationId": "ingest_readings",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadingBatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "readings"
+        ],
+        "summary": "List Readings",
+        "operationId": "list_readings",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Id"
+            }
+          },
+          {
+            "name": "metric",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Metric"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Metric"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5000,
+              "minimum": 1,
+              "default": 500,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReadingPublic"
+                  },
+                  "title": "Response List Readings"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DeviceCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DeviceKind"
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Location",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind"
+        ],
+        "title": "DeviceCreate"
+      },
+      "DeviceCreated": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DeviceKind"
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Location",
+            "default": ""
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "id",
+          "created_at",
+          "token"
+        ],
+        "title": "DeviceCreated"
+      },
+      "DeviceKind": {
+        "type": "string",
+        "enum": [
+          "ambient",
+          "in_vessel"
+        ],
+        "title": "DeviceKind"
+      },
+      "DevicePublic": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DeviceKind"
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Location",
+            "default": ""
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "id",
+          "created_at"
+        ],
+        "title": "DevicePublic"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "IngestResult": {
+        "properties": {
+          "accepted": {
+            "type": "integer",
+            "title": "Accepted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted"
+        ],
+        "title": "IngestResult"
+      },
+      "Metric": {
+        "type": "string",
+        "enum": [
+          "temperature_c",
+          "humidity_pct",
+          "pressure_hpa",
+          "specific_gravity",
+          "battery_v"
+        ],
+        "title": "Metric",
+        "description": "Unit is part of the name, so values are never ambiguous."
+      },
+      "ReadingBatch": {
+        "properties": {
+          "readings": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingIn"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Readings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "readings"
+        ],
+        "title": "ReadingBatch"
+      },
+      "ReadingIn": {
+        "properties": {
+          "metric": {
+            "$ref": "#/components/schemas/Metric"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "recorded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metric",
+          "value"
+        ],
+        "title": "ReadingIn"
+      },
+      "ReadingPublic": {
+        "properties": {
+          "device_id": {
+            "type": "integer",
+            "title": "Device Id"
+          },
+          "metric": {
+            "$ref": "#/components/schemas/Metric"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recorded At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "metric",
+          "value",
+          "recorded_at"
+        ],
+        "title": "ReadingPublic"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}
