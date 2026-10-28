@@ -1,4 +1,12 @@
-.PHONY: db dev-backend dev-frontend api-types check-api-types migration migrate check check-backend check-frontend audit up
+.PHONY: setup db dev-backend dev-frontend api-types check-api-types migration migrate check check-backend check-frontend audit up
+
+# Same token in every file: the frontend server authenticates to the backend with it.
+setup:         ## create .env, backend/.env, frontend/.env.local with a fresh ADMIN_TOKEN (skips existing files)
+	@token=$$(python3 -c "import secrets; print(secrets.token_urlsafe(32))"); \
+	for f in .env backend/.env frontend/.env.local; do \
+	  if [ -e $$f ]; then echo "$$f exists, skipped (ADMIN_TOKEN must match across all three)"; \
+	  else sed "s|^ADMIN_TOKEN=.*|ADMIN_TOKEN=$$token|" .env.example > $$f && echo "created $$f"; fi; \
+	done
 
 db:            ## start Postgres only
 	docker compose up -d db
