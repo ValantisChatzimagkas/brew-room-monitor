@@ -16,8 +16,15 @@ Next 16 with `cacheComponents` on. APIs differ from older Next: check `node_modu
 ## Components
 - Server Components by default. `"use client"` only on small interactive leaves (charts, toggles, forms with local state).
 - Route files in `src/app/`; shared UI in `src/components/`; non-UI helpers in `src/lib/`. Create those folders when first needed.
-- Styling: Tailwind utility classes only. No component library or CSS-in-JS until there's a clear need.
 - Every route that fetches data has a sensible loading state and is covered by an `error.tsx`.
+
+## Design system (shadcn on Base UI)
+- Before writing UI, in this order: reuse from `src/components/` → use `src/components/ui/` → `pnpm exec shadcn add <name>` (read `pnpm exec shadcn docs <name>` first) → only then compose a new component in `src/components/` from `ui/` pieces.
+- `src/components/ui/` is vendored shadcn code. Change it through the CLI (`add <name> --diff` for upstream fixes), or add a `cva` variant once two call sites need it. Never edit it to style one page.
+- Official `@shadcn` registry only; `.claude/settings.json` denies `shadcn add` with anything containing `/` (namespace, `owner/repo`, URL, path), so add by bare name: `add dialog`. If `add` installs npm packages, name them in your summary.
+- Colors, radius and fonts come from tokens in `src/app/globals.css`; Tailwind's default palette is removed. A new color (e.g. an insight status) is a new semantic token there, with a dark value.
+- Icons: `lucide-react`. Charts: shadcn `chart`. No other UI, icon or animation library, no CSS-in-JS.
+- `eslint.config.mjs` enforces the above (unknown classes, arbitrary values, raw form elements, primitive and foreign imports). Fix the code; don't disable a rule inline.
 
 ## Quality bar
 - `pnpm lint` (zero warnings), `pnpm typecheck`, `pnpm build` all pass (`make check-frontend`).

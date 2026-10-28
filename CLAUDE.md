@@ -47,9 +47,11 @@ Sensors (ESP32 now, in-fermenter capsules later) push readings → FastAPI store
 - **No speculative docs.** No docs site, changelog, diagram files or per-folder READMEs until someone needs one. Write a decision record (`docs/decisions/NNNN-title.md`: context, decision, consequences, a few lines) only for a hard-to-reverse choice whose reasoning doesn't fit in a line of `ARCHITECTURE.md`; propose the folder the first time.
 
 ## Agent setup (`.claude/`)
-- `settings.json` enforces: `.env*` files unreadable, generated files and lockfiles not hand-editable (use `make api-types`, `uv add`, `pnpm add`), Python auto-formatted on save, lint + types re-checked when you stop.
+- `settings.json` enforces: `.env*` files unreadable, generated files and lockfiles not hand-editable (use `make api-types`, `uv add`, `pnpm add`), `shadcn add` limited to the official registry, Python auto-formatted on save, lint + types re-checked when you stop.
 - After a non-trivial change, run the `reviewer` agent on the diff and fix what it finds before calling the task done.
 - Issues live in Linear; create and edit them only through the `linear-issue` skill (template, labels, target project).
+- Open and edit PRs only through the `pull-request` skill (template in `.github/pull_request_template.md`).
+- `skills/shadcn` is copied from `shadcn/ui` (via `skills add`) and patched to use the pinned CLI and the official registry only. If you update it, re-apply those edits.
 
 ## Domain glossary
 - **Device**: one sensor node. `ambient` (room) or `in_vessel` (floats in the fermenter).
