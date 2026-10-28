@@ -49,6 +49,7 @@ Sensors (ESP32 now, in-fermenter capsules later) push readings → FastAPI store
 ## Agent setup (`.claude/`)
 - `settings.json` enforces: `.env*` files unreadable, generated files and lockfiles not hand-editable (use `make api-types`, `uv add`, `pnpm add`), Python auto-formatted on save, lint + types re-checked when you stop.
 - After a non-trivial change, run the `reviewer` agent on the diff and fix what it finds before calling the task done.
+- Issues live in Linear; create and edit them only through the `linear-issue` skill (template, labels, target project).
 
 ## Domain glossary
 - **Device**: one sensor node. `ambient` (room) or `in_vessel` (floats in the fermenter).
