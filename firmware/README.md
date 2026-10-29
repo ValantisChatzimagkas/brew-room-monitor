@@ -4,11 +4,19 @@ Firmware lives here (one folder per device type, e.g. `esp32-ambient/`). This fi
 
 ## 1. Register a device (once, from your laptop)
 
+An `ambient` device needs the room it measures. Create the location once (`GET /api/v1/locations` lists existing ones), then register the device with its `id`:
+
 ```sh
+curl -X POST http://<server>:8000/api/v1/locations \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name": "garage"}'
+
 curl -X POST http://<server>:8000/api/v1/devices \
   -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-  -d '{"name": "esp32-room-1", "kind": "ambient", "location": "garage"}'
+  -d '{"name": "esp32-room-1", "kind": "ambient", "location_id": 1}'
 ```
+
+`in_vessel` devices may omit `location_id`. Rename or move a device later with `PATCH /api/v1/devices/{id}`.
 
 Response contains `token`. It is shown **once**; flash it into the device config (not into git).
 

@@ -37,27 +37,51 @@
         ],
         "summary": "List Devices",
         "operationId": "list_devices",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/DevicePublic"
                   },
-                  "type": "array",
                   "title": "Response List Devices"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -65,15 +89,20 @@
         ],
         "summary": "Create Device",
         "operationId": "create_device",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/DeviceCreate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -96,12 +125,162 @@
               }
             }
           }
-        },
+        }
+      }
+    },
+    "/api/v1/devices/{device_id}": {
+      "patch": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Update Device",
+        "operationId": "update_device",
         "security": [
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevicePublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/locations": {
+      "get": {
+        "tags": [
+          "locations"
+        ],
+        "summary": "List Locations",
+        "operationId": "list_locations",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LocationPublic"
+                  },
+                  "title": "Response List Locations"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "locations"
+        ],
+        "summary": "Create Location",
+        "operationId": "create_location",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocationCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/readings": {
@@ -266,11 +445,16 @@
           "kind": {
             "$ref": "#/components/schemas/DeviceKind"
           },
-          "location": {
-            "type": "string",
-            "maxLength": 64,
-            "title": "Location",
-            "default": ""
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
           }
         },
         "type": "object",
@@ -291,11 +475,16 @@
           "kind": {
             "$ref": "#/components/schemas/DeviceKind"
           },
-          "location": {
-            "type": "string",
-            "maxLength": 64,
-            "title": "Location",
-            "default": ""
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
           },
           "id": {
             "type": "integer",
@@ -305,6 +494,16 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocationPublic"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "token": {
             "type": "string",
@@ -317,6 +516,7 @@
           "kind",
           "id",
           "created_at",
+          "location",
           "token"
         ],
         "title": "DeviceCreated"
@@ -340,11 +540,16 @@
           "kind": {
             "$ref": "#/components/schemas/DeviceKind"
           },
-          "location": {
-            "type": "string",
-            "maxLength": 64,
-            "title": "Location",
-            "default": ""
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
           },
           "id": {
             "type": "integer",
@@ -354,6 +559,16 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocationPublic"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -361,9 +576,40 @@
           "name",
           "kind",
           "id",
-          "created_at"
+          "created_at",
+          "location"
         ],
         "title": "DevicePublic"
+      },
+      "DeviceUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          }
+        },
+        "type": "object",
+        "title": "DeviceUpdate"
       },
       "HTTPValidationError": {
         "properties": {
@@ -390,6 +636,41 @@
           "accepted"
         ],
         "title": "IngestResult"
+      },
+      "LocationCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "LocationCreate"
+      },
+      "LocationPublic": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "id"
+        ],
+        "title": "LocationPublic"
       },
       "Metric": {
         "type": "string",

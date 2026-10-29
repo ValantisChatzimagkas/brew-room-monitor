@@ -52,7 +52,7 @@ function DeviceCard({ device, latest }: { device: Device; latest: Reading[] }) {
             <h2>{device.name}</h2>
           </CardTitle>
           <CardDescription>
-            {device.kind} {device.location && `· ${device.location}`}
+            {device.kind} {device.location && `· ${device.location.name}`}
           </CardDescription>
         </CardHeader>
         <CardContent>
