@@ -63,8 +63,18 @@ def admin_headers() -> dict[str, str]:
 
 
 @pytest.fixture
-def device_headers(client: TestClient, admin_headers: dict[str, str]) -> dict[str, str]:
+def location_id(client: TestClient, admin_headers: dict[str, str]) -> int:
+    res = client.post("/api/v1/locations", json={"name": "garage"}, headers=admin_headers)
+    return int(res.json()["id"])
+
+
+@pytest.fixture
+def device_headers(
+    client: TestClient, admin_headers: dict[str, str], location_id: int
+) -> dict[str, str]:
     res = client.post(
-        "/api/v1/devices", json={"name": "room-1", "kind": "ambient"}, headers=admin_headers
+        "/api/v1/devices",
+        json={"name": "room-1", "kind": "ambient", "location_id": location_id},
+        headers=admin_headers,
     )
     return {"Authorization": f"Bearer {res.json()['token']}"}

@@ -39,6 +39,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/devices/{device_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Device */
+        patch: operations["update_device"];
+        trace?: never;
+    };
+    "/api/v1/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Locations */
+        get: operations["list_locations"];
+        put?: never;
+        /** Create Location */
+        post: operations["create_location"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/readings": {
         parameters: {
             query?: never;
@@ -69,22 +104,16 @@ export interface components {
             /** Name */
             name: string;
             kind: components["schemas"]["DeviceKind"];
-            /**
-             * Location
-             * @default
-             */
-            location: string;
+            /** Location Id */
+            location_id?: number | null;
         };
         /** DeviceCreated */
         DeviceCreated: {
             /** Name */
             name: string;
             kind: components["schemas"]["DeviceKind"];
-            /**
-             * Location
-             * @default
-             */
-            location: string;
+            /** Location Id */
+            location_id?: number | null;
             /** Id */
             id: number;
             /**
@@ -92,6 +121,7 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            location: components["schemas"]["LocationPublic"] | null;
             /** Token */
             token: string;
         };
@@ -105,11 +135,8 @@ export interface components {
             /** Name */
             name: string;
             kind: components["schemas"]["DeviceKind"];
-            /**
-             * Location
-             * @default
-             */
-            location: string;
+            /** Location Id */
+            location_id?: number | null;
             /** Id */
             id: number;
             /**
@@ -117,6 +144,14 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            location: components["schemas"]["LocationPublic"] | null;
+        };
+        /** DeviceUpdate */
+        DeviceUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Location Id */
+            location_id?: number | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -127,6 +162,18 @@ export interface components {
         IngestResult: {
             /** Accepted */
             accepted: number;
+        };
+        /** LocationCreate */
+        LocationCreate: {
+            /** Name */
+            name: string;
+        };
+        /** LocationPublic */
+        LocationPublic: {
+            /** Name */
+            name: string;
+            /** Id */
+            id: number;
         };
         /**
          * Metric
@@ -206,7 +253,9 @@ export interface operations {
     };
     list_devices: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -220,6 +269,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DevicePublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -244,6 +302,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeviceCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_device: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DevicePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_locations: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_location: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationPublic"];
                 };
             };
             /** @description Validation Error */

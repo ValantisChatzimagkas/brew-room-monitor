@@ -6,10 +6,11 @@ Never return a table model with secrets (e.g. token_hash) directly from a route.
 
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Self
 
-from pydantic import AwareDatetime, ConfigDict
-from sqlalchemy import Column, DateTime, Index, String
-from sqlmodel import Field, SQLModel
+from pydantic import AwareDatetime, ConfigDict, model_validator
+from sqlalchemy import Column, DateTime, Index, String, func, text
+from sqlmodel import Field, Relationship, SQLModel
 
 
 def utcnow() -> datetime:
@@ -36,13 +37,36 @@ class Metric(StrEnum):
     BATTERY_V = "battery_v"
 
 
+# --- Location -------------------------------------------------------------
+
+
+class LocationBase(SQLModel):
+    name: str = Field(min_length=1, max_length=64)  # a room, e.g. "garage"
+
+
+class Location(LocationBase, table=True):
+    # "Garage" and "garage" are the same room.
+    __table_args__ = (Index("uq_location_name_lower", func.lower(text("name")), unique=True),)
+
+    id: int | None = Field(default=None, primary_key=True)
+
+
+class LocationCreate(LocationBase):
+    model_config = ConfigDict(str_strip_whitespace=True)  # type: ignore[assignment]
+
+
+class LocationPublic(LocationBase):
+    id: int
+
+
 # --- Device ---------------------------------------------------------------
 
 
 class DeviceBase(SQLModel):
     name: str = Field(min_length=1, max_length=64, unique=True)
     kind: DeviceKind = Field(sa_type=String(32))  # str, not PG enum: new values need no migration
-    location: str = Field(default="", max_length=64)  # brewing room / fermenter label
+    # Nullable in the DB so pre-location ambient rows stay valid; the API requires it on create.
+    location_id: int | None = Field(default=None, foreign_key="location.id", ondelete="RESTRICT")
 
 
 class Device(DeviceBase, table=True):
@@ -50,14 +74,33 @@ class Device(DeviceBase, table=True):
     token_hash: str = Field(max_length=64, unique=True)
     created_at: datetime = Field(default_factory=utcnow, sa_column=tz_column())
 
+    location: Location | None = Relationship()
+
 
 class DeviceCreate(DeviceBase):
-    pass
+    @model_validator(mode="after")
+    def _ambient_needs_location(self) -> Self:
+        # An ambient device measures a room; an in-vessel one gets its place from the vessel later.
+        if self.kind == DeviceKind.AMBIENT and self.location_id is None:
+            raise ValueError("ambient devices need a location_id")
+        return self
+
+
+class DeviceUpdate(SQLModel):
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    location_id: int | None = None
+
+    @model_validator(mode="after")
+    def _name_not_null(self) -> Self:
+        if "name" in self.model_fields_set and self.name is None:
+            raise ValueError("name cannot be null")
+        return self
 
 
 class DevicePublic(DeviceBase):
     id: int
     created_at: datetime
+    location: LocationPublic | None
 
 
 class DeviceCreated(DevicePublic):

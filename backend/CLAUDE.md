@@ -2,7 +2,7 @@
 
 ## Layout
 - `app/main.py` app + router registration · `app/config.py` settings · `app/db.py` engine/session
-- `app/models.py` tables and API schemas · `app/deps.py` shared dependencies (session, auth)
+- `app/models.py` tables and API schemas · `app/deps.py` shared dependencies (session, auth) and `save_or_conflict` (commit, unique clash → 409)
 - `app/routers/<resource>.py` one router per resource, mounted under `/api/v1`
 - Add `app/services/<x>.py` only when logic is shared by 2+ routes or is non-trivial domain logic (e.g. yeast insights). Pure functions there, easy to unit test.
 

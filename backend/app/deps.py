@@ -3,7 +3,8 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlmodel import Session, select
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, SQLModel, select
 
 from app.config import Settings, get_settings
 from app.db import get_session
@@ -38,6 +39,17 @@ def current_device(creds: BearerDep, session: SessionDep) -> Device:
     if device is None:
         raise _UNAUTHORIZED
     return device
+
+
+def save_or_conflict(session: Session, row: SQLModel, conflict: str) -> None:
+    """Commit `row`; a unique-constraint clash becomes 409 with `conflict` as the message."""
+    session.add(row)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, conflict) from None
+    session.refresh(row)
 
 
 AdminDep = Depends(require_admin)
