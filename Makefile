@@ -8,8 +8,8 @@ setup:         ## create .env, backend/.env, frontend/.env.local with a fresh AD
 	  else sed "s|^ADMIN_TOKEN=.*|ADMIN_TOKEN=$$token|" .env.example > $$f && echo "created $$f"; fi; \
 	done
 
-db:            ## start Postgres only
-	docker compose up -d db
+db:            ## start Postgres only, wait until it accepts connections
+	docker compose up -d --wait db
 
 dev-backend:   ## API with reload on :8000
 	cd backend && uv run alembic upgrade head && uv run fastapi dev

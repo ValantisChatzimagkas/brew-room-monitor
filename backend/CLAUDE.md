@@ -41,6 +41,6 @@
 
 ## Deploy targets
 Must keep working on both, so:
-- Docker: `Dockerfile` runs `alembic upgrade head` then `fastapi run`.
+- Docker: `Dockerfile` runs `alembic upgrade head` then `exec`s `fastapi run`, so the app is PID 1 and receives SIGTERM.
 - FastAPI Cloud: `fastapi deploy` from `backend/` uses `[tool.fastapi] entrypoint` in `pyproject.toml`. Point `DATABASE_URL` at a managed Postgres, set `ADMIN_TOKEN` + `ENVIRONMENT=production`, run migrations as a separate step against that DB.
 - So: stateless app, no writes to local disk, no background threads that must survive restarts, everything configured by env.

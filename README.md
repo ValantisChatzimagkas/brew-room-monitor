@@ -10,7 +10,7 @@ Needs Docker, [uv](https://docs.astral.sh/uv/), Node 22 + pnpm.
 
 ```sh
 make setup                      # env files from .env.example, with a generated ADMIN_TOKEN
-make db                         # Postgres
+make db                         # Postgres, waits until it is ready
 make dev-backend                # http://localhost:8000/docs
 make dev-frontend               # http://localhost:3000
 ```
