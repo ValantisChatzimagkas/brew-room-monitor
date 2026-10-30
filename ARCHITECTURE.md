@@ -45,7 +45,7 @@ Start reading here, by flow:
 
 - **Sync endpoints, sync SQLModel session.** Simple and enough for this load; FastAPI runs them in its threadpool.
 - **The backend is stateless and configured only by env**, so the same code runs in Docker or on FastAPI Cloud.
-- **Migrations run on container start** (`backend/Dockerfile`). That's fine for one instance; move them to a release step before running more than one. On FastAPI Cloud, order by what the migration does: a new column the new code reads (e.g. `device.revoked_at`) → migrate first, since old code ignores it; an added constraint (e.g. the reading dedupe index) → deploy the new code first, because it makes still-running old code return 500s until the new code is live.
+- **Migrations run on container start** (`backend/Dockerfile`), then the app `exec`s into PID 1 so it stops gracefully on SIGTERM. That's fine for one instance; move them to a release step before running more than one. On FastAPI Cloud, order by what the migration does: a new column the new code reads (e.g. `device.revoked_at`) → migrate first, since old code ignores it; an added constraint (e.g. the reading dedupe index) → deploy the new code first, because it makes still-running old code return 500s until the new code is live.
 - **The frontend reads env at request time**, not build time, so one image works in every environment.
 - **Postgres only, no cache or queue.** Add one when a measured need shows up.
 

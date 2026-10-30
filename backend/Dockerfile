@@ -16,4 +16,5 @@ USER app
 
 EXPOSE 8000
 # Migrations run on start; fine for a single instance. Use a release step if you ever scale out.
-CMD ["sh", "-c", "alembic upgrade head && fastapi run --host 0.0.0.0 --port 8000"]
+# `exec` makes the app PID 1 so SIGTERM reaches it (sh would swallow it, and `docker stop` would wait 10s then SIGKILL).
+CMD ["sh", "-c", "alembic upgrade head && exec fastapi run --host 0.0.0.0 --port 8000"]
