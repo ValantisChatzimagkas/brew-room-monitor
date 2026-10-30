@@ -6,7 +6,7 @@ Never return a table model with secrets (e.g. token_hash) directly from a route.
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Self
+from typing import NamedTuple, Self
 
 from pydantic import AwareDatetime, ConfigDict, model_validator
 from sqlalchemy import Column, DateTime, Index, String, func, text
@@ -35,6 +35,37 @@ class Metric(StrEnum):
     PRESSURE_HPA = "pressure_hpa"
     SPECIFIC_GRAVITY = "specific_gravity"
     BATTERY_V = "battery_v"
+
+
+class MetricSpec(NamedTuple):
+    kinds: frozenset[DeviceKind]  # which device kinds may send this metric
+    min_value: float  # inclusive. Sensor-rated, not brewing, range: a 422 drops the whole batch
+    max_value: float  # inclusive
+
+
+def metric_spec(metric: Metric) -> MetricSpec:
+    # No `case _`: mypy then fails here when a Metric member has no spec.
+    match metric:
+        case Metric.TEMPERATURE_C:
+            return MetricSpec(
+                kinds=frozenset({DeviceKind.AMBIENT, DeviceKind.IN_VESSEL}),
+                min_value=-40,
+                max_value=125,
+            )
+        case Metric.HUMIDITY_PCT:
+            return MetricSpec(kinds=frozenset({DeviceKind.AMBIENT}), min_value=0, max_value=100)
+        case Metric.PRESSURE_HPA:
+            return MetricSpec(kinds=frozenset({DeviceKind.AMBIENT}), min_value=300, max_value=1100)
+        case Metric.SPECIFIC_GRAVITY:
+            return MetricSpec(
+                kinds=frozenset({DeviceKind.IN_VESSEL}), min_value=0.980, max_value=1.200
+            )
+        case Metric.BATTERY_V:
+            return MetricSpec(
+                kinds=frozenset({DeviceKind.AMBIENT, DeviceKind.IN_VESSEL}),
+                min_value=0,
+                max_value=5.5,
+            )
 
 
 # --- Location -------------------------------------------------------------
@@ -140,6 +171,13 @@ class ReadingIn(SQLModel):
     value: float
     # Optional: devices without NTP/RTC omit it and the server stamps receive time.
     recorded_at: AwareDatetime | None = None
+
+    @model_validator(mode="after")
+    def _value_in_range(self) -> Self:
+        spec = metric_spec(self.metric)
+        if not spec.min_value <= self.value <= spec.max_value:
+            raise ValueError(f"{self.metric} must be between {spec.min_value} and {spec.max_value}")
+        return self
 
 
 class ReadingBatch(SQLModel):

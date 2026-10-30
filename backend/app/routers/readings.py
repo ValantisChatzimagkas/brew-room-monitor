@@ -6,7 +6,15 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col, select
 
 from app.deps import AdminDep, DeviceDep, SessionDep
-from app.models import IngestResult, Metric, Reading, ReadingBatch, ReadingPublic, utcnow
+from app.models import (
+    IngestResult,
+    Metric,
+    Reading,
+    ReadingBatch,
+    ReadingPublic,
+    metric_spec,
+    utcnow,
+)
 
 router = APIRouter(prefix="/readings", tags=["readings"])
 
@@ -20,6 +28,14 @@ def ingest_readings(batch: ReadingBatch, device: DeviceDep, session: SessionDep)
     now = utcnow()
     if any(r.recorded_at and r.recorded_at > now + MAX_CLOCK_SKEW for r in batch.readings):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "recorded_at is in the future")
+    bad_metrics = sorted(
+        {r.metric for r in batch.readings if device.kind not in metric_spec(r.metric).kinds}
+    )
+    if bad_metrics:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"{', '.join(bad_metrics)} not allowed for {device.kind} devices",
+        )
 
     # A device resends a batch after a lost 201; rows already stored (see the partial unique
     # index on Reading) are skipped, new ones in the same batch still land.

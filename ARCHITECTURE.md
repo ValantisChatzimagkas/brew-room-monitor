@@ -17,7 +17,7 @@ Devices push batches of readings. The backend stores them as rows of `(device, m
 Start reading here, by flow:
 
 - **Register a device:** `backend/app/routers/locations.py` creates the room, then `backend/app/routers/devices.py` creates the device pointing at it plus a random token, stores only its hash (`app/security.py`), and returns the plaintext once.
-- **Ingest:** `backend/app/routers/readings.py` `ingest_readings`. Auth comes from `current_device` in `app/deps.py` (token hash lookup). Payload bounds are in `ReadingBatch` / `ReadingIn`, metrics and units in `Metric` (`app/models.py`), the future-timestamp check in `MAX_CLOCK_SKEW`.
+- **Ingest:** `backend/app/routers/readings.py` `ingest_readings`. Auth comes from `current_device` in `app/deps.py` (token hash lookup). Payload bounds are in `ReadingBatch` / `ReadingIn`, metrics and units in `Metric`, allowed kinds and range per metric in `metric_spec` (`app/models.py`), the future-timestamp check in `MAX_CLOCK_SKEW`.
 - **Show:** `frontend/src/app/page.tsx` → `getApi()` in `frontend/src/lib/api/client.ts` → `GET /api/v1/devices` and `/readings` with the admin token.
 - **Contract:** FastAPI generates OpenAPI → `make api-types` → `frontend/openapi.json` + `frontend/src/lib/api/schema.d.ts`. The device-facing part is written down in `firmware/README.md`.
 - **Schema:** `backend/app/models.py` → Alembic migrations in `backend/alembic/versions/`.
@@ -35,6 +35,7 @@ Start reading here, by flow:
 - **One narrow `reading` table** (device, metric, value, time), not a column per sensor. A new metric is a new `Metric` value, not a new table or column, and because metrics are stored as strings it needs no migration.
 - **A location is a room, as its own row** (name unique ignoring case), so devices in the same room group reliably and a device moves by changing `location_id`. `ambient` devices must have one; `in_vessel` devices may omit it, because their place will come from the vessel/batch they float in. The FK is `RESTRICT`, so a location with devices can't vanish.
 - **Two timestamps.** `recorded_at` comes from the device (optional, because a device without NTP/RTC omits it and the server stamps the receive time). `received_at` is always server time. Timestamps clearly in the future are rejected, not stored, so a bad device clock can't corrupt history.
+- **Validated readings.** A metric the device kind can't send, or a value outside its metric's physical range, rejects the whole batch. Ranges are sensor-wide on purpose: a 422 makes the device drop the batch, so the bounds stay wide enough for real sensor reads.
 - **Batched ingest** (bounds in `firmware/README.md`), because sending every few minutes saves device battery.
 - **Ingest is idempotent.** A device-stamped reading is stored once per `(device, metric, recorded_at)`; a resend is a no-op, so a device that lost a 201 can retry its buffer. Readings without `recorded_at` are exempt, because they share the receive time and would clash. A partial unique index on `Reading` enforces it (`backend/app/models.py`).
 - **Index `(device_id, metric, recorded_at)`** serves per-device and per-metric history; a second, partial unique index on the same columns does the dedupe. The dashboard's current query (all readings, newest first) doesn't filter on those columns, so it can't use this index; add a `recorded_at` index if that query gets slow.
@@ -49,5 +50,5 @@ Start reading here, by flow:
 
 ## Extending it
 
-- **New metric:** add a `Metric` value → `make api-types` → add its label in `METRIC_LABEL` in `page.tsx` (typecheck forces this) → list it in `firmware/README.md`.
-- **New device type:** add a `DeviceKind` value if it differs from the existing ones. If it can't send the v1 payload, see `firmware/README.md` (Hardware notes) and the `/api/v1` guardrail.
+- **New metric:** add a `Metric` value → add its case in `metric_spec` (mypy forces this) → `make api-types` → add its label in `METRIC_LABEL` in `page.tsx` (typecheck forces this) → list it in `firmware/README.md`.
+- **New device type:** add a `DeviceKind` value if it differs from the existing ones, and add it to the `kinds` of each metric it may send in `metric_spec` (mypy does not catch a missing kind: its batches would all get 422). If it can't send the v1 payload, see `firmware/README.md` (Hardware notes) and the `/api/v1` guardrail.

@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -26,7 +27,13 @@ def test_ingest_and_list(
 
 
 def test_ingest_requires_device_token(client: TestClient, admin_headers: dict[str, str]) -> None:
-    batch = {"readings": [{"metric": "temperature_c", "value": 20}]}
+    # Out-of-range value on purpose: auth runs before body validation, so this is still 401.
+    batch = {
+        "readings": [
+            {"metric": "temperature_c", "value": 20},
+            {"metric": "humidity_pct", "value": 101},
+        ]
+    }
     assert client.post("/api/v1/readings", json=batch).status_code == 401
     # The admin token is not a device token.
     assert client.post("/api/v1/readings", json=batch, headers=admin_headers).status_code == 401
@@ -129,3 +136,105 @@ def test_readings_without_recorded_at_are_never_deduplicated(
         assert res.status_code == 201
         assert res.json() == {"accepted": 2}
         assert len(client.get("/api/v1/readings", headers=admin_headers).json()) == expected
+
+
+@pytest.mark.parametrize(
+    ("headers_fixture", "readings"),
+    [
+        (
+            "device_headers",
+            [
+                {"metric": "temperature_c", "value": 19.4},
+                {"metric": "humidity_pct", "value": 58.2},
+                {"metric": "pressure_hpa", "value": 1013.2},
+                {"metric": "battery_v", "value": 3.9},
+            ],
+        ),
+        (
+            "in_vessel_headers",
+            [
+                {"metric": "temperature_c", "value": 19.4},
+                {"metric": "specific_gravity", "value": 1.050},
+                {"metric": "battery_v", "value": 3.9},
+            ],
+        ),
+    ],
+)
+def test_accepts_every_metric_its_kind_allows(
+    request: pytest.FixtureRequest,
+    client: TestClient,
+    admin_headers: dict[str, str],
+    headers_fixture: str,
+    readings: list[dict[str, object]],
+) -> None:
+    headers: dict[str, str] = request.getfixturevalue(headers_fixture)
+    res = client.post("/api/v1/readings", json={"readings": readings}, headers=headers)
+    assert res.status_code == 201
+    assert res.json() == {"accepted": len(readings)}
+    assert len(client.get("/api/v1/readings", headers=admin_headers).json()) == len(readings)
+
+
+@pytest.mark.parametrize(
+    ("headers_fixture", "metric", "value"),
+    [
+        ("device_headers", "specific_gravity", 1.050),
+        ("in_vessel_headers", "humidity_pct", 58.2),
+        ("in_vessel_headers", "pressure_hpa", 1013.2),
+    ],
+)
+def test_rejects_metric_not_allowed_for_kind(
+    request: pytest.FixtureRequest,
+    client: TestClient,
+    admin_headers: dict[str, str],
+    headers_fixture: str,
+    metric: str,
+    value: float,
+) -> None:
+    headers: dict[str, str] = request.getfixturevalue(headers_fixture)
+    batch = {
+        "readings": [
+            {"metric": "temperature_c", "value": 19.4},
+            {"metric": metric, "value": value},
+        ]
+    }
+    res = client.post("/api/v1/readings", json=batch, headers=headers)
+    assert res.status_code == 422
+    assert client.get("/api/v1/readings", headers=admin_headers).json() == []
+
+
+@pytest.mark.parametrize(
+    ("metric", "headers_fixture", "low", "high", "below", "above"),
+    [
+        ("temperature_c", "device_headers", -40, 125, -40.1, 125.1),
+        ("humidity_pct", "device_headers", 0, 100, -0.1, 100.1),
+        ("pressure_hpa", "device_headers", 300, 1100, 299.9, 1100.1),
+        ("specific_gravity", "in_vessel_headers", 0.980, 1.200, 0.979, 1.201),
+        ("battery_v", "in_vessel_headers", 0, 5.5, -0.1, 5.6),
+    ],
+)
+def test_value_bounds_per_metric(
+    request: pytest.FixtureRequest,
+    client: TestClient,
+    admin_headers: dict[str, str],
+    metric: str,
+    headers_fixture: str,
+    low: float,
+    high: float,
+    below: float,
+    above: float,
+) -> None:
+    headers: dict[str, str] = request.getfixturevalue(headers_fixture)
+
+    def stored() -> int:
+        return len(client.get("/api/v1/readings", headers=admin_headers).json())
+
+    # Both edges are inclusive.
+    edges = {"readings": [{"metric": metric, "value": low}, {"metric": metric, "value": high}]}
+    assert client.post("/api/v1/readings", json=edges, headers=headers).status_code == 201
+    assert stored() == 2
+
+    # A bad value rejects the whole batch, so the good reading beside it is not stored.
+    for bad in (below, above):
+        mixed = {"readings": [{"metric": metric, "value": low}, {"metric": metric, "value": bad}]}
+        assert client.post("/api/v1/readings", json=mixed, headers=headers).status_code == 422
+        assert stored() == 2
