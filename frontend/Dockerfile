@@ -1,5 +1,5 @@
 FROM node:26-alpine AS base
-RUN corepack enable
+RUN npm install -g corepack@0.36.0 && corepack enable
 WORKDIR /app
 
 FROM base AS deps
