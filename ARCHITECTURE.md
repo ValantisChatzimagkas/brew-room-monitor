@@ -16,7 +16,7 @@ Devices push batches of readings. The backend stores them as rows of `(device, m
 
 Start reading here, by flow:
 
-- **Register a device:** `backend/app/routers/locations.py` creates the room, then `backend/app/routers/devices.py` creates the device pointing at it plus a random token, stores only its hash (`app/security.py`), and returns the plaintext once. A lost device is cut off with `POST /api/v1/devices/{id}/revoke`.
+- **Register a device:** `backend/app/routers/locations.py` creates the room, then `backend/app/routers/devices.py` creates the device pointing at it plus a random token, stores only its hash (`app/security.py`), and returns the plaintext once. A lost device is cut off with `POST /api/v1/devices/{id}/revoke`, or re-keyed with `.../rotate`.
 - **Ingest:** `backend/app/routers/readings.py` `ingest_readings`. Auth comes from `current_device` in `app/deps.py` (token hash lookup; revoke replaces the hash, so a revoked token is just an unknown one). Payload bounds are in `ReadingBatch` / `ReadingIn`, metrics and units in `Metric`, allowed kinds and range per metric in `metric_spec` (`app/models.py`), the future-timestamp check in `MAX_CLOCK_SKEW`.
 - **Show:** `frontend/src/app/page.tsx` → `getApi()` in `frontend/src/lib/api/client.ts` → `GET /api/v1/devices` and `/readings` with the admin token.
 - **Contract:** FastAPI generates OpenAPI → `make api-types` → `frontend/openapi.json` + `frontend/src/lib/api/schema.d.ts`. The device-facing part is written down in `firmware/README.md`.

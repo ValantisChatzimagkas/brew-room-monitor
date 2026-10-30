@@ -71,6 +71,18 @@ def revoke_device(device_id: int, session: SessionDep) -> DevicePublic:
     return DevicePublic.model_validate(device)
 
 
+@router.post("/{device_id}/rotate")
+def rotate_device_token(device_id: int, session: SessionDep) -> DeviceCreated:
+    device = _get_device(session, device_id)
+    token = new_device_token()
+    device.token_hash = hash_token(token)
+    device.revoked_at = None
+    session.add(device)
+    session.commit()
+    session.refresh(device)
+    return DeviceCreated.model_validate(device, update={"token": token})
+
+
 def _get_device(session: Session, device_id: int) -> Device:
     device = session.get(Device, device_id)
     if device is None:

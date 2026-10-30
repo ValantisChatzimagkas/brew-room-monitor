@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
         ("POST", "/api/v1/devices"),
         ("PATCH", "/api/v1/devices/1"),
         ("POST", "/api/v1/devices/1/revoke"),
+        ("POST", "/api/v1/devices/1/rotate"),
     ],
 )
 def test_requires_admin_token(
@@ -112,6 +113,7 @@ def test_rejects_bad_updates(
     [
         ("PATCH", "/api/v1/devices/999", {"name": "x"}),
         ("POST", "/api/v1/devices/999/revoke", None),
+        ("POST", "/api/v1/devices/999/rotate", None),
     ],
 )
 def test_unknown_device_404(
@@ -149,6 +151,33 @@ def test_revoke_cuts_off_device(client: TestClient, admin_headers: dict[str, str
     listed = client.get("/api/v1/devices", headers=admin_headers).json()
     assert listed[0]["revoked_at"] == revoked_at
     assert "token" not in listed[0] and "token_hash" not in listed[0]
+
+
+def test_rotate_replaces_token(client: TestClient, admin_headers: dict[str, str]) -> None:
+    device = client.post(
+        "/api/v1/devices", json={"name": "capsule", "kind": "in_vessel"}, headers=admin_headers
+    ).json()
+    batch = {"readings": [{"metric": "temperature_c", "value": 18.0}]}
+
+    def ingest(token: str) -> int:
+        headers = {"Authorization": f"Bearer {token}"}
+        return client.post("/api/v1/readings", json=batch, headers=headers).status_code
+
+    def rotate() -> dict[str, Any]:
+        res = client.post(f"/api/v1/devices/{device['id']}/rotate", headers=admin_headers)
+        assert res.status_code == 200
+        assert res.json()["revoked_at"] is None
+        return dict(res.json())
+
+    token_a = device["token"]
+    token_b = rotate()["token"]
+    assert token_b != token_a
+    assert (ingest(token_a), ingest(token_b)) == (401, 201)
+
+    # Rotating a revoked device re-enables it, and only the newest token works.
+    client.post(f"/api/v1/devices/{device['id']}/revoke", headers=admin_headers)
+    token_c = rotate()["token"]
+    assert (ingest(token_b), ingest(token_c)) == (401, 201)
 
 
 def test_in_vessel_location_can_be_cleared(
