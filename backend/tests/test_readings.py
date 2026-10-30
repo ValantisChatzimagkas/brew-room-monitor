@@ -40,7 +40,92 @@ def test_rejects_bad_payloads(client: TestClient, device_headers: dict[str, str]
         {"readings": [{"metric": "temperature_c", "value": "NaN"}]},
         {"readings": [{"metric": "temperature_c", "value": 1, "recorded_at": "2026-01-01T12:00"}]},
         {"readings": [{"metric": "temperature_c", "value": 1, "recorded_at": future}]},
+        {"readings": [{"metric": "temperature_c", "value": 1}] * 501},
     ]
     for batch in bad_batches:
         res = client.post("/api/v1/readings", json=batch, headers=device_headers)
         assert res.status_code == 422, batch
+
+
+def test_resend_is_idempotent(
+    client: TestClient, device_headers: dict[str, str], admin_headers: dict[str, str]
+) -> None:
+    def reading(minute: int) -> dict[str, object]:
+        return {
+            "metric": "temperature_c",
+            "value": 18.0 + minute,
+            "recorded_at": f"2026-01-01T12:0{minute}:00Z",
+        }
+
+    def stored() -> int:
+        return len(client.get("/api/v1/readings", headers=admin_headers).json())
+
+    first = {"readings": [reading(0), reading(1)]}
+    for _ in range(2):  # the second round is a retry after a lost 201
+        res = client.post("/api/v1/readings", json=first, headers=device_headers)
+        assert res.status_code == 201
+        assert res.json() == {"accepted": 2}
+        assert stored() == 2
+
+    overlapping = {"readings": [reading(1), reading(2)]}
+    res = client.post("/api/v1/readings", json=overlapping, headers=device_headers)
+    assert res.status_code == 201
+    assert res.json() == {"accepted": 2}
+    assert stored() == 3
+
+
+def test_same_reading_from_two_devices_is_stored_twice(
+    client: TestClient,
+    device_headers: dict[str, str],
+    admin_headers: dict[str, str],
+    location_id: int,
+) -> None:
+    res = client.post(
+        "/api/v1/devices",
+        json={"name": "room-2", "kind": "ambient", "location_id": location_id},
+        headers=admin_headers,
+    )
+    other_headers = {"Authorization": f"Bearer {res.json()['token']}"}
+    batch = {
+        "readings": [{"metric": "temperature_c", "value": 20, "recorded_at": "2026-01-01T12:00Z"}]
+    }
+    for headers in (device_headers, other_headers):
+        assert client.post("/api/v1/readings", json=batch, headers=headers).status_code == 201
+
+    stored = client.get("/api/v1/readings", headers=admin_headers).json()
+    assert len({r["device_id"] for r in stored}) == 2
+
+
+def test_backlog_accepted_and_ordered_by_recorded_at(
+    client: TestClient, device_headers: dict[str, str], admin_headers: dict[str, str]
+) -> None:
+    now = datetime.now(UTC)
+    days_ago = [3, 1, 2, 0]  # arrival order differs from time order
+    batch = {
+        "readings": [
+            {
+                "metric": "temperature_c",
+                "value": 20,
+                "recorded_at": (now - timedelta(days=d, minutes=1)).isoformat(),
+            }
+            for d in days_ago
+        ]
+    }
+    res = client.post("/api/v1/readings", json=batch, headers=device_headers)
+    assert res.status_code == 201
+
+    stored = client.get("/api/v1/readings", headers=admin_headers).json()
+    times = [datetime.fromisoformat(r["recorded_at"]) for r in stored]
+    assert len(times) == 4
+    assert times == sorted(times, reverse=True)
+
+
+def test_readings_without_recorded_at_are_never_deduplicated(
+    client: TestClient, device_headers: dict[str, str], admin_headers: dict[str, str]
+) -> None:
+    batch = {"readings": [{"metric": "humidity_pct", "value": 60}] * 2}
+    for expected in (2, 4):
+        res = client.post("/api/v1/readings", json=batch, headers=device_headers)
+        assert res.status_code == 201
+        assert res.json() == {"accepted": 2}
+        assert len(client.get("/api/v1/readings", headers=admin_headers).json()) == expected

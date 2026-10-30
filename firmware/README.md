@@ -36,6 +36,8 @@ Content-Type: application/json
 - `metric`: `temperature_c`, `humidity_pct`, `pressure_hpa`, `specific_gravity`, `battery_v`
 - `recorded_at`: optional ISO-8601 **with offset**. Omit if the device has no NTP/RTC; the server uses receive time. More than 5 minutes in the future → 422.
 - 1–500 readings per request. Batch and send every few minutes rather than one request per sample (saves battery).
+- **Retries are safe.** A reading with `recorded_at` is stored once per device and metric, so resending a batch after a lost response adds nothing, and a batch that only partly overlaps stored readings still stores the new ones. A second reading with the same metric and `recorded_at` (a probe pair, or a clock coarser than the sample rate) is dropped, and the response is still 201: keep `recorded_at` unique per metric.
+- **Buffering offline:** send `recorded_at` on every buffered reading (sync NTP over the hotspot, keep the RTC running). Readings without it get the receive time and are never deduplicated. Send a backlog larger than 500 readings as several batches; each is safe to retry.
 
 ## Responses
 | Status | Meaning | Device should |
