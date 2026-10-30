@@ -1,4 +1,5 @@
 FROM node:26-alpine AS base
+# node 26 no longer bundles corepack; pnpm itself is pinned by packageManager in package.json.
 RUN npm install -g corepack@0.36.0 && corepack enable
 WORKDIR /app
 
