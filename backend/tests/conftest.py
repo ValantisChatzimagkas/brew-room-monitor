@@ -78,3 +78,13 @@ def device_headers(
         headers=admin_headers,
     )
     return {"Authorization": f"Bearer {res.json()['token']}"}
+
+
+@pytest.fixture
+def in_vessel_headers(client: TestClient, admin_headers: dict[str, str]) -> dict[str, str]:
+    res = client.post(
+        "/api/v1/devices",
+        json={"name": "vessel-1", "kind": "in_vessel"},
+        headers=admin_headers,
+    )
+    return {"Authorization": f"Bearer {res.json()['token']}"}

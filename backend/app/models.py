@@ -6,7 +6,7 @@ Never return a table model with secrets (e.g. token_hash) directly from a route.
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Self
+from typing import NamedTuple, Self
 
 from pydantic import AwareDatetime, ConfigDict, model_validator
 from sqlalchemy import Column, DateTime, Index, String, func, text
@@ -35,6 +35,25 @@ class Metric(StrEnum):
     PRESSURE_HPA = "pressure_hpa"
     SPECIFIC_GRAVITY = "specific_gravity"
     BATTERY_V = "battery_v"
+
+
+class MetricSpec(NamedTuple):
+    kinds: frozenset[DeviceKind]  # which device kinds may send this metric
+
+
+def metric_spec(metric: Metric) -> MetricSpec:
+    # No `case _`: mypy then fails here when a Metric member has no spec.
+    match metric:
+        case Metric.TEMPERATURE_C:
+            return MetricSpec(kinds=frozenset({DeviceKind.AMBIENT, DeviceKind.IN_VESSEL}))
+        case Metric.HUMIDITY_PCT:
+            return MetricSpec(kinds=frozenset({DeviceKind.AMBIENT}))
+        case Metric.PRESSURE_HPA:
+            return MetricSpec(kinds=frozenset({DeviceKind.AMBIENT}))
+        case Metric.SPECIFIC_GRAVITY:
+            return MetricSpec(kinds=frozenset({DeviceKind.IN_VESSEL}))
+        case Metric.BATTERY_V:
+            return MetricSpec(kinds=frozenset({DeviceKind.AMBIENT, DeviceKind.IN_VESSEL}))
 
 
 # --- Location -------------------------------------------------------------

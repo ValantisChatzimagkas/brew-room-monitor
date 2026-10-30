@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -129,3 +130,67 @@ def test_readings_without_recorded_at_are_never_deduplicated(
         assert res.status_code == 201
         assert res.json() == {"accepted": 2}
         assert len(client.get("/api/v1/readings", headers=admin_headers).json()) == expected
+
+
+@pytest.mark.parametrize(
+    ("headers_fixture", "readings"),
+    [
+        (
+            "device_headers",
+            [
+                {"metric": "temperature_c", "value": 19.4},
+                {"metric": "humidity_pct", "value": 58.2},
+                {"metric": "pressure_hpa", "value": 1013.2},
+                {"metric": "battery_v", "value": 3.9},
+            ],
+        ),
+        (
+            "in_vessel_headers",
+            [
+                {"metric": "temperature_c", "value": 19.4},
+                {"metric": "specific_gravity", "value": 1.050},
+                {"metric": "battery_v", "value": 3.9},
+            ],
+        ),
+    ],
+)
+def test_accepts_every_metric_its_kind_allows(
+    request: pytest.FixtureRequest,
+    client: TestClient,
+    admin_headers: dict[str, str],
+    headers_fixture: str,
+    readings: list[dict[str, object]],
+) -> None:
+    headers: dict[str, str] = request.getfixturevalue(headers_fixture)
+    res = client.post("/api/v1/readings", json={"readings": readings}, headers=headers)
+    assert res.status_code == 201
+    assert res.json() == {"accepted": len(readings)}
+    assert len(client.get("/api/v1/readings", headers=admin_headers).json()) == len(readings)
+
+
+@pytest.mark.parametrize(
+    ("headers_fixture", "metric", "value"),
+    [
+        ("device_headers", "specific_gravity", 1.050),
+        ("in_vessel_headers", "humidity_pct", 58.2),
+        ("in_vessel_headers", "pressure_hpa", 1013.2),
+    ],
+)
+def test_rejects_metric_not_allowed_for_kind(
+    request: pytest.FixtureRequest,
+    client: TestClient,
+    admin_headers: dict[str, str],
+    headers_fixture: str,
+    metric: str,
+    value: float,
+) -> None:
+    headers: dict[str, str] = request.getfixturevalue(headers_fixture)
+    batch = {
+        "readings": [
+            {"metric": "temperature_c", "value": 19.4},
+            {"metric": metric, "value": value},
+        ]
+    }
+    res = client.post("/api/v1/readings", json=batch, headers=headers)
+    assert res.status_code == 422
+    assert client.get("/api/v1/readings", headers=admin_headers).json() == []

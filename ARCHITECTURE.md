@@ -17,7 +17,7 @@ Devices push batches of readings. The backend stores them as rows of `(device, m
 Start reading here, by flow:
 
 - **Register a device:** `backend/app/routers/locations.py` creates the room, then `backend/app/routers/devices.py` creates the device pointing at it plus a random token, stores only its hash (`app/security.py`), and returns the plaintext once.
-- **Ingest:** `backend/app/routers/readings.py` `ingest_readings`. Auth comes from `current_device` in `app/deps.py` (token hash lookup). Payload bounds are in `ReadingBatch` / `ReadingIn`, metrics and units in `Metric` (`app/models.py`), the future-timestamp check in `MAX_CLOCK_SKEW`.
+- **Ingest:** `backend/app/routers/readings.py` `ingest_readings`. Auth comes from `current_device` in `app/deps.py` (token hash lookup). Payload bounds are in `ReadingBatch` / `ReadingIn`, metrics and units in `Metric`, allowed kinds per metric in `metric_spec` (`app/models.py`), the future-timestamp check in `MAX_CLOCK_SKEW`.
 - **Show:** `frontend/src/app/page.tsx` → `getApi()` in `frontend/src/lib/api/client.ts` → `GET /api/v1/devices` and `/readings` with the admin token.
 - **Contract:** FastAPI generates OpenAPI → `make api-types` → `frontend/openapi.json` + `frontend/src/lib/api/schema.d.ts`. The device-facing part is written down in `firmware/README.md`.
 - **Schema:** `backend/app/models.py` → Alembic migrations in `backend/alembic/versions/`.
@@ -49,5 +49,5 @@ Start reading here, by flow:
 
 ## Extending it
 
-- **New metric:** add a `Metric` value → `make api-types` → add its label in `METRIC_LABEL` in `page.tsx` (typecheck forces this) → list it in `firmware/README.md`.
-- **New device type:** add a `DeviceKind` value if it differs from the existing ones. If it can't send the v1 payload, see `firmware/README.md` (Hardware notes) and the `/api/v1` guardrail.
+- **New metric:** add a `Metric` value → add its case in `metric_spec` (mypy forces this) → `make api-types` → add its label in `METRIC_LABEL` in `page.tsx` (typecheck forces this) → list it in `firmware/README.md`.
+- **New device type:** add a `DeviceKind` value if it differs from the existing ones, and add it to the `kinds` of each metric it may send in `metric_spec` (mypy does not catch a missing kind: its batches would all get 422). If it can't send the v1 payload, see `firmware/README.md` (Hardware notes) and the `/api/v1` guardrail.

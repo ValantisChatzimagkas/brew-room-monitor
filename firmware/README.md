@@ -33,7 +33,16 @@ Content-Type: application/json
 ]}
 ```
 
-- `metric`: `temperature_c`, `humidity_pct`, `pressure_hpa`, `specific_gravity`, `battery_v`
+- `metric`: one of the names below, and only for a device kind that may send it. Any other kind → 422.
+
+| metric | allowed kinds |
+|---|---|
+| `temperature_c` | `ambient`, `in_vessel` |
+| `humidity_pct` | `ambient` |
+| `pressure_hpa` | `ambient` |
+| `specific_gravity` | `in_vessel` |
+| `battery_v` | `ambient`, `in_vessel` |
+
 - `recorded_at`: optional ISO-8601 **with offset**. Omit if the device has no NTP/RTC; the server uses receive time. More than 5 minutes in the future → 422.
 - 1–500 readings per request. Batch and send every few minutes rather than one request per sample (saves battery).
 - **Retries are safe.** A reading with `recorded_at` is stored once per device and metric, so resending a batch after a lost response adds nothing, and a batch that only partly overlaps stored readings still stores the new ones. A second reading with the same metric and `recorded_at` (a probe pair, or a clock coarser than the sample rate) is dropped, and the response is still 201: keep `recorded_at` unique per metric.
@@ -44,7 +53,7 @@ Content-Type: application/json
 |---|---|---|
 | 201 | stored | drop from buffer |
 | 401 | bad/revoked token | stop, signal error (LED) |
-| 422 | invalid payload | drop the batch (retrying won't help), log it |
+| 422 | invalid payload, or a metric not allowed for this device's kind | drop the batch (retrying won't help), log it |
 | 5xx / network error | server down | keep buffer, retry with backoff |
 
 ## Hardware notes
