@@ -21,7 +21,7 @@ Start reading here, by flow:
 - **Show:** `frontend/src/app/page.tsx` → `getApi()` in `frontend/src/lib/api/client.ts` → `GET /api/v1/devices` and `/readings` with the admin token.
 - **Contract:** FastAPI generates OpenAPI → `make api-types` → `frontend/openapi.json` + `frontend/src/lib/api/schema.d.ts`. The device-facing part is written down in `firmware/README.md`.
 - **Schema:** `backend/app/models.py` → Alembic migrations in `backend/alembic/versions/`.
-- **Run/deploy:** `docker-compose.yml` (db, backend, frontend), one `Dockerfile` per app, CI in `.github/workflows/ci.yml`.
+- **Run/deploy:** `docker-compose.yml` (db, backend, frontend, with healthchecks), one `Dockerfile` per app, CI in `.github/workflows/ci.yml`.
 
 ## Boundaries and why they exist
 
@@ -46,6 +46,7 @@ Start reading here, by flow:
 - **Sync endpoints, sync SQLModel session.** Simple and enough for this load; FastAPI runs them in its threadpool.
 - **The backend is stateless and configured only by env**, so the same code runs in Docker or on FastAPI Cloud.
 - **Migrations run on container start** (`backend/Dockerfile`), then the app `exec`s into PID 1 so it stops gracefully on SIGTERM. That's fine for one instance; move them to a release step before running more than one. On FastAPI Cloud, order by what the migration does: a new column the new code reads (e.g. `device.revoked_at`) → migrate first, since old code ignores it; an added constraint (e.g. the reading dedupe index) → deploy the new code first, because it makes still-running old code return 500s until the new code is live.
+- **Compose services report health, and the frontend starts only after the backend is healthy**, so `docker compose up --wait` returns when the stack is usable. The frontend's `GET /health` is public and independent of the backend.
 - **The frontend reads env at request time**, not build time, so one image works in every environment.
 - **Postgres only, no cache or queue.** Add one when a measured need shows up.
 
