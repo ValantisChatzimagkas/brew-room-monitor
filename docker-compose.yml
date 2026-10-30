@@ -10,7 +10,7 @@ services:
     ports: ["127.0.0.1:5432:5432"]  # dev creds: never reachable from the LAN
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U brew -d brew"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U brew -d brew"]
       interval: 3s
       retries: 10
 
