@@ -185,6 +185,53 @@
         }
       }
     },
+    "/api/v1/devices/{device_id}/revoke": {
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Revoke Device",
+        "operationId": "revoke_device",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevicePublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/locations": {
       "get": {
         "tags": [
@@ -495,6 +542,18 @@
             "format": "date-time",
             "title": "Created At"
           },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
           "location": {
             "anyOf": [
               {
@@ -516,6 +575,7 @@
           "kind",
           "id",
           "created_at",
+          "revoked_at",
           "location",
           "token"
         ],
@@ -560,6 +620,18 @@
             "format": "date-time",
             "title": "Created At"
           },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
           "location": {
             "anyOf": [
               {
@@ -577,6 +649,7 @@
           "kind",
           "id",
           "created_at",
+          "revoked_at",
           "location"
         ],
         "title": "DevicePublic"

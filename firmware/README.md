@@ -16,7 +16,7 @@ curl -X POST http://<server>:8000/api/v1/devices \
   -d '{"name": "esp32-room-1", "kind": "ambient", "location_id": 1}'
 ```
 
-`in_vessel` devices may omit `location_id`. Rename or move a device later with `PATCH /api/v1/devices/{id}`.
+`in_vessel` devices may omit `location_id`. Rename or move a device later with `PATCH /api/v1/devices/{id}`. Cut a lost device off with `POST /api/v1/devices/{id}/revoke`; its readings stay.
 
 Response contains `token`. It is shown **once**; flash it into the device config (not into git).
 

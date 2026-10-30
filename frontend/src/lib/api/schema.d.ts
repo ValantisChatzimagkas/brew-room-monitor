@@ -56,6 +56,23 @@ export interface paths {
         patch: operations["update_device"];
         trace?: never;
     };
+    "/api/v1/devices/{device_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke Device */
+        post: operations["revoke_device"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/locations": {
         parameters: {
             query?: never;
@@ -121,6 +138,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Revoked At */
+            revoked_at: string | null;
             location: components["schemas"]["LocationPublic"] | null;
             /** Token */
             token: string;
@@ -144,6 +163,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Revoked At */
+            revoked_at: string | null;
             location: components["schemas"]["LocationPublic"] | null;
         };
         /** DeviceUpdate */
@@ -329,6 +350,37 @@ export interface operations {
                 "application/json": components["schemas"]["DeviceUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DevicePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_device: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

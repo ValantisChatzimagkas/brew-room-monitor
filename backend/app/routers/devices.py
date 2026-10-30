@@ -13,6 +13,7 @@ from app.models import (
     DevicePublic,
     DeviceUpdate,
     Location,
+    utcnow,
 )
 from app.security import hash_token, new_device_token
 
@@ -43,9 +44,7 @@ def create_device(payload: DeviceCreate, session: SessionDep) -> DeviceCreated:
 
 @router.patch("/{device_id}")
 def update_device(device_id: int, payload: DeviceUpdate, session: SessionDep) -> DevicePublic:
-    device = session.get(Device, device_id)
-    if device is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Device not found")
+    device = _get_device(session, device_id)
     changes = payload.model_dump(exclude_unset=True)
     if "location_id" in changes:
         if changes["location_id"] is None and device.kind == DeviceKind.AMBIENT:
@@ -56,6 +55,27 @@ def update_device(device_id: int, payload: DeviceUpdate, session: SessionDep) ->
     device.sqlmodel_update(changes)
     save_or_conflict(session, device, "Device name already exists")
     return DevicePublic.model_validate(device)
+
+
+@router.post("/{device_id}/revoke")
+def revoke_device(device_id: int, session: SessionDep) -> DevicePublic:
+    device = _get_device(session, device_id)
+    if device.revoked_at is None:
+        # Replacing the hash, not `revoked_at`, is what locks the device out: the old token dies
+        # under any code version, so a rollback can't readmit it. Its plaintext is never kept.
+        device.revoked_at = utcnow()
+        device.token_hash = hash_token(new_device_token())
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+    return DevicePublic.model_validate(device)
+
+
+def _get_device(session: Session, device_id: int) -> Device:
+    device = session.get(Device, device_id)
+    if device is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Device not found")
+    return device
 
 
 def _ensure_location_exists(session: Session, location_id: int | None) -> None:
