@@ -21,6 +21,6 @@ Register a sensor and send data: see [`firmware/README.md`](firmware/README.md).
 
 ## Before pushing
 
-`make check` (same as CI). `make audit` checks dependencies for known CVEs (its own CI workflow, also weekly).
+`make check` (the backend and frontend CI jobs). `make smoke` builds the images and boots the full stack (its own CI job; needs Docker and ports 3000/8000/5432 free). `make audit` checks dependencies for known CVEs (its own CI workflow, also weekly).
 
 How it fits together and why: [`ARCHITECTURE.md`](ARCHITECTURE.md). Working rules for humans and AI agents: [`CLAUDE.md`](CLAUDE.md).

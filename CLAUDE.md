@@ -11,7 +11,7 @@ Sensors (ESP32 now, in-fermenter capsules later) push readings → FastAPI store
 
 ## Commands (from repo root)
 - `make db` → Postgres in Docker; `make dev-backend` / `make dev-frontend` → hot reload
-- `make check` → everything CI runs except `make audit` (dependency CVEs, separate workflow). **Must pass before you call a task done.**
+- `make check` → everything CI runs except `make audit` (dependency CVEs, separate workflow) and `make smoke` (Docker stack boot, own CI job). **Must pass before you call a task done.**
 - One backend test: `cd backend && uv run pytest tests/test_readings.py -k ingest` (needs `make db`)
 - `make api-types` → regenerate frontend types after any backend schema/route change
 - `make migration m="..."` → after any table change; read the generated file before committing

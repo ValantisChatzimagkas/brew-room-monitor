@@ -21,7 +21,7 @@ Start reading here, by flow:
 - **Show:** `frontend/src/app/page.tsx` → `getApi()` in `frontend/src/lib/api/client.ts` → `GET /api/v1/devices` and `/readings` with the admin token.
 - **Contract:** FastAPI generates OpenAPI → `make api-types` → `frontend/openapi.json` + `frontend/src/lib/api/schema.d.ts`. The device-facing part is written down in `firmware/README.md`.
 - **Schema:** `backend/app/models.py` → Alembic migrations in `backend/alembic/versions/`.
-- **Run/deploy:** `docker-compose.yml` (db, backend, frontend, with healthchecks), one `Dockerfile` per app, CI in `.github/workflows/ci.yml`.
+- **Run/deploy:** `docker-compose.yml` (db, backend, frontend, with healthchecks), one `Dockerfile` per app, CI in `.github/workflows/ci.yml` (its `stack` job runs `make smoke`: builds the images and boots the compose stack).
 
 ## Boundaries and why they exist
 

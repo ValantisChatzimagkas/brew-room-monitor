@@ -14,7 +14,7 @@ Fixes TCV-
 <!-- Bullets a reviewer can check against the diff. Name what you reused, or why nothing fit. -->
 
 ## Verified
-<!-- What you checked beyond CI (CI runs `make check`): an API call, the rendered page, a device run. Screenshot for UI changes. -->
+<!-- What you checked beyond CI (CI runs `make check` and `make smoke`): an API call, the rendered page, a device run. Screenshot for UI changes. -->
 
 ## Review focus (optional)
 <!-- The risky part, a trade-off, or an open question. -->
