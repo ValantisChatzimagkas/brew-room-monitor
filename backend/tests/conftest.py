@@ -68,23 +68,24 @@ def location_id(client: TestClient, admin_headers: dict[str, str]) -> int:
     return int(res.json()["id"])
 
 
+def _register_device(
+    client: TestClient, admin_headers: dict[str, str], body: dict[str, object]
+) -> dict[str, str]:
+    res = client.post("/api/v1/devices", json=body, headers=admin_headers)
+    return {"Authorization": f"Bearer {res.json()['token']}"}
+
+
 @pytest.fixture
 def device_headers(
     client: TestClient, admin_headers: dict[str, str], location_id: int
 ) -> dict[str, str]:
-    res = client.post(
-        "/api/v1/devices",
-        json={"name": "room-1", "kind": "ambient", "location_id": location_id},
-        headers=admin_headers,
+    return _register_device(
+        client,
+        admin_headers,
+        {"name": "room-1", "kind": "ambient", "location_id": location_id},
     )
-    return {"Authorization": f"Bearer {res.json()['token']}"}
 
 
 @pytest.fixture
 def in_vessel_headers(client: TestClient, admin_headers: dict[str, str]) -> dict[str, str]:
-    res = client.post(
-        "/api/v1/devices",
-        json={"name": "vessel-1", "kind": "in_vessel"},
-        headers=admin_headers,
-    )
-    return {"Authorization": f"Bearer {res.json()['token']}"}
+    return _register_device(client, admin_headers, {"name": "vessel-1", "kind": "in_vessel"})
