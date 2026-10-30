@@ -80,6 +80,15 @@ def test_resend_is_idempotent(
     assert res.json() == {"accepted": 2}
     assert stored() == 3
 
+    # same key, different value: first write wins, still 201
+    conflicting = {"readings": [{**reading(1), "value": 99.0}]}
+    res = client.post("/api/v1/readings", json=conflicting, headers=device_headers)
+    assert res.status_code == 201
+    assert res.json() == {"accepted": 1}
+    values = [r["value"] for r in client.get("/api/v1/readings", headers=admin_headers).json()]
+    assert stored() == 3
+    assert 99.0 not in values
+
 
 def test_same_reading_from_two_devices_is_stored_twice(
     client: TestClient,
