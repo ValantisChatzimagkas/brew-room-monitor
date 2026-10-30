@@ -16,8 +16,8 @@ Devices push batches of readings. The backend stores them as rows of `(device, m
 
 Start reading here, by flow:
 
-- **Register a device:** `backend/app/routers/locations.py` creates the room, then `backend/app/routers/devices.py` creates the device pointing at it plus a random token, stores only its hash (`app/security.py`), and returns the plaintext once.
-- **Ingest:** `backend/app/routers/readings.py` `ingest_readings`. Auth comes from `current_device` in `app/deps.py` (token hash lookup). Payload bounds are in `ReadingBatch` / `ReadingIn`, metrics and units in `Metric`, allowed kinds and range per metric in `metric_spec` (`app/models.py`), the future-timestamp check in `MAX_CLOCK_SKEW`.
+- **Register a device:** `backend/app/routers/locations.py` creates the room, then `backend/app/routers/devices.py` creates the device pointing at it plus a random token, stores only its hash (`app/security.py`), and returns the plaintext once. A lost device is cut off with `POST /api/v1/devices/{id}/revoke`, or re-keyed with `.../rotate`.
+- **Ingest:** `backend/app/routers/readings.py` `ingest_readings`. Auth comes from `current_device` in `app/deps.py` (token hash lookup; revoke replaces the hash, so a revoked token is just an unknown one). Payload bounds are in `ReadingBatch` / `ReadingIn`, metrics and units in `Metric`, allowed kinds and range per metric in `metric_spec` (`app/models.py`), the future-timestamp check in `MAX_CLOCK_SKEW`.
 - **Show:** `frontend/src/app/page.tsx` → `getApi()` in `frontend/src/lib/api/client.ts` → `GET /api/v1/devices` and `/readings` with the admin token.
 - **Contract:** FastAPI generates OpenAPI → `make api-types` → `frontend/openapi.json` + `frontend/src/lib/api/schema.d.ts`. The device-facing part is written down in `firmware/README.md`.
 - **Schema:** `backend/app/models.py` → Alembic migrations in `backend/alembic/versions/`.
@@ -36,6 +36,7 @@ Start reading here, by flow:
 - **A location is a room, as its own row** (name unique ignoring case), so devices in the same room group reliably and a device moves by changing `location_id`. `ambient` devices must have one; `in_vessel` devices may omit it, because their place will come from the vessel/batch they float in. The FK is `RESTRICT`, so a location with devices can't vanish.
 - **Two timestamps.** `recorded_at` comes from the device (optional, because a device without NTP/RTC omits it and the server stamps the receive time). `received_at` is always server time. Timestamps clearly in the future are rejected, not stored, so a bad device clock can't corrupt history.
 - **Validated readings.** A metric the device kind can't send, or a value outside its metric's physical range, rejects the whole batch. Ranges are sensor-wide on purpose: a 422 makes the device drop the batch, so the bounds stay wide enough for real sensor reads.
+- **Devices are revoked (`revoked_at`), never deleted**, because their readings cascade on device delete.
 - **Batched ingest** (bounds in `firmware/README.md`), because sending every few minutes saves device battery.
 - **Ingest is idempotent.** A device-stamped reading is stored once per `(device, metric, recorded_at)`; a resend is a no-op, so a device that lost a 201 can retry its buffer. Readings without `recorded_at` are exempt, because they share the receive time and would clash. A partial unique index on `Reading` enforces it (`backend/app/models.py`).
 - **Index `(device_id, metric, recorded_at)`** serves per-device and per-metric history; a second, partial unique index on the same columns does the dedupe. The dashboard's current query (all readings, newest first) doesn't filter on those columns, so it can't use this index; add a `recorded_at` index if that query gets slow.
@@ -44,7 +45,7 @@ Start reading here, by flow:
 
 - **Sync endpoints, sync SQLModel session.** Simple and enough for this load; FastAPI runs them in its threadpool.
 - **The backend is stateless and configured only by env**, so the same code runs in Docker or on FastAPI Cloud.
-- **Migrations run on container start** (`backend/Dockerfile`). That's fine for one instance; move them to a release step before running more than one. On FastAPI Cloud, deploy the new code first, then migrate: a migration that adds a constraint (e.g. the reading dedupe index) makes still-running old code return 500s until the new code is live.
+- **Migrations run on container start** (`backend/Dockerfile`). That's fine for one instance; move them to a release step before running more than one. On FastAPI Cloud, order by what the migration does: a new column the new code reads (e.g. `device.revoked_at`) → migrate first, since old code ignores it; an added constraint (e.g. the reading dedupe index) → deploy the new code first, because it makes still-running old code return 500s until the new code is live.
 - **The frontend reads env at request time**, not build time, so one image works in every environment.
 - **Postgres only, no cache or queue.** Add one when a measured need shows up.
 

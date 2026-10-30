@@ -16,7 +16,7 @@ curl -X POST http://<server>:8000/api/v1/devices \
   -d '{"name": "esp32-room-1", "kind": "ambient", "location_id": 1}'
 ```
 
-`in_vessel` devices may omit `location_id`. Rename or move a device later with `PATCH /api/v1/devices/{id}`.
+`in_vessel` devices may omit `location_id`. Rename or move a device later with `PATCH /api/v1/devices/{id}`. Cut a lost device off with `POST /api/v1/devices/{id}/revoke`; its readings stay. Re-key a lost or reflashed device with `POST /api/v1/devices/{id}/rotate`: the new token is shown once, the old one stops working, and a revoked device is re-enabled. Then reflash.
 
 Response contains `token`. It is shown **once**; flash it into the device config (not into git).
 
@@ -54,7 +54,7 @@ Clamp `humidity_pct` to 0–100 before sending (raw SHT4x output can exceed it);
 | Status | Meaning | Device should |
 |---|---|---|
 | 201 | stored | drop from buffer |
-| 401 | bad/revoked token | stop, signal error (LED) |
+| 401 | bad, revoked or rotated-out token | stop, signal error (LED) |
 | 422 | invalid payload, a metric not allowed for this device's kind, or a value outside its metric's range | drop the batch (retrying won't help), log it |
 | 5xx / network error | server down | keep buffer, retry with backoff |
 

@@ -17,9 +17,9 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-def tz_column() -> Column[datetime]:
+def tz_column(*, nullable: bool = False) -> Column[datetime]:
     """Every timestamp is timezone-aware UTC. Naive datetimes are a bug."""
-    return Column(DateTime(timezone=True), nullable=False)
+    return Column(DateTime(timezone=True), nullable=nullable)
 
 
 class DeviceKind(StrEnum):
@@ -104,6 +104,7 @@ class Device(DeviceBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     token_hash: str = Field(max_length=64, unique=True)
     created_at: datetime = Field(default_factory=utcnow, sa_column=tz_column())
+    revoked_at: datetime | None = Field(default=None, sa_column=tz_column(nullable=True))
 
     location: Location | None = Relationship()
 
@@ -131,6 +132,7 @@ class DeviceUpdate(SQLModel):
 class DevicePublic(DeviceBase):
     id: int
     created_at: datetime
+    revoked_at: datetime | None
     location: LocationPublic | None
 
 
