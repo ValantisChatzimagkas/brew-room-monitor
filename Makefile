@@ -1,4 +1,4 @@
-.PHONY: setup db dev-backend dev-frontend api-types check-api-types migration migrate check check-backend check-frontend audit up
+.PHONY: setup db dev-backend dev-frontend api-types check-api-types migration migrate check check-backend check-frontend audit up smoke
 
 # Same token in every file: the frontend server authenticates to the backend with it.
 setup:         ## create .env, backend/.env, frontend/.env.local with a fresh ADMIN_TOKEN (skips existing files)
@@ -50,3 +50,21 @@ audit:         ## known CVEs in runtime deps (own CI workflow, not part of `chec
 
 up:            ## full stack in Docker
 	docker compose up --build
+
+# Own compose project, so a run never touches the dev stack's volume. Host ports are shared with
+# the dev stack: stop it first (a clash fails fast with "port is already allocated").
+# The frontend's `/` returns 200 even when its backend call fails, so the page must show the
+# seeded device. The seed response holds a device token: never print it.
+smoke:         ## build the images, boot the compose stack, assert it works end to end (needs ports 3000/8000/5432 free)
+	@set -e; \
+	export COMPOSE_PROJECT_NAME=brew-smoke ADMIN_TOKEN=$${ADMIN_TOKEN:-smoke-token}; \
+	trap 'rc=$$?; set +e; if [ $$rc -ne 0 ]; then docker compose ps -a; docker compose logs; fi; docker compose down -v --remove-orphans; exit $$rc' EXIT; \
+	trap 'exit 130' INT; trap 'exit 143' TERM; \
+	docker compose up --build --wait; \
+	curl -fsS http://localhost:8000/health >/dev/null; \
+	curl -fsS -X POST http://localhost:8000/api/v1/devices \
+	  -H "Authorization: Bearer $$ADMIN_TOKEN" -H "Content-Type: application/json" \
+	  -d '{"name":"smoke-device","kind":"in_vessel"}' >/dev/null; \
+	page=$$(curl -fsS http://localhost:3000/); \
+	case "$$page" in *smoke-device*) ;; *) echo "smoke: frontend page is missing smoke-device"; exit 1;; esac; \
+	echo "smoke: ok"
