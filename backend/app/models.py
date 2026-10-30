@@ -111,7 +111,19 @@ class DeviceCreated(DevicePublic):
 
 
 class Reading(SQLModel, table=True):
-    __table_args__ = (Index("ix_reading_device_metric_time", "device_id", "metric", "recorded_at"),)
+    __table_args__ = (
+        Index("ix_reading_device_metric_time", "device_id", "metric", "recorded_at"),
+        # Dedupes resent backlogs. Server-stamped readings (recorded_at == received_at) are
+        # exempt: they share one `now` per batch, so two clockless same-metric readings would clash.
+        Index(
+            "uq_reading_device_metric_time",
+            "device_id",
+            "metric",
+            "recorded_at",
+            unique=True,
+            postgresql_where=text("recorded_at <> received_at"),
+        ),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     device_id: int = Field(foreign_key="device.id", ondelete="CASCADE")
