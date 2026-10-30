@@ -40,3 +40,12 @@ jobs:
       - run: cd frontend && pnpm install --frozen-lockfile
       - run: make check-frontend
 
+  stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ADMIN_TOKEN: ci-token
+    steps:
+      - uses: actions/checkout@v7
+      - run: make smoke
+

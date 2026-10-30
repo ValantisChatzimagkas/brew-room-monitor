@@ -36,7 +36,7 @@ migration:     ## make migration m="describe change"
 migrate:
 	cd backend && uv run alembic upgrade head
 
-check: check-backend check-frontend  ## everything the CI build job runs (CI calls these targets)
+check: check-backend check-frontend  ## everything the `backend` and `frontend` CI jobs run (CI calls these targets)
 
 check-backend:
 	cd backend && uv run ruff format --check . && uv run ruff check . && uv run mypy . && uv run alembic upgrade head && uv run alembic check && uv run pytest
