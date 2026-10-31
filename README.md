@@ -15,7 +15,7 @@ make dev-backend                # http://localhost:8000/docs
 make dev-frontend               # http://localhost:3000
 ```
 
-Full stack in containers: `make up`.
+Full stack in containers: `make up`. All targets: `make help`.
 
 Register a sensor and send data: see [`firmware/README.md`](firmware/README.md).
 

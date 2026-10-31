@@ -1,4 +1,4 @@
-.PHONY: setup db dev-backend dev-frontend api-types check-api-types migration migrate check check-backend check-frontend audit up smoke
+.PHONY: help setup db dev-backend dev-frontend api-types check-api-types migration migrate check check-backend check-frontend audit up smoke
 
 # Root .env is the only env file: its values reach every recipe (dev-*, check-*, up, smoke).
 # Inside make the file wins over a same-named shell variable; write values unquoted (Makefile syntax).
@@ -6,6 +6,12 @@ ifneq (,$(wildcard .env))
 include .env
 export
 endif
+
+.DEFAULT_GOAL := help
+
+# Reads the Makefile only: $(MAKEFILE_LIST) also holds the included .env.
+help:          ## list targets
+	@grep -E '^[a-zA-Z_-]+:.*## ' $(firstword $(MAKEFILE_LIST)) | awk -F':.*## ' '{printf "%-16s %s\n", $$1, $$2}'
 
 setup:         ## create .env with a fresh ADMIN_TOKEN (skips an existing file)
 	@if [ -e .env ]; then echo ".env exists, skipped"; \
@@ -29,7 +35,7 @@ api-types:     ## regenerate frontend types from the backend OpenAPI schema
 	cd frontend && pnpm exec openapi-typescript $(abspath $(OPENAPI)) -o $(abspath $(SCHEMA))
 
 # Generates into a temp dir, so it passes with regenerated-but-unstaged files (unlike `git diff`).
-check-api-types:
+check-api-types:  ## fail if the frontend API types are stale
 	@tmp=$$(mktemp -d) && $(MAKE) -s api-types OPENAPI=$$tmp/openapi.json SCHEMA=$$tmp/schema.d.ts >/dev/null \
 	  && diff -q $$tmp/openapi.json $(OPENAPI) && diff -q $$tmp/schema.d.ts $(SCHEMA) \
 	  || { echo "Frontend API types are stale: run 'make api-types'"; exit 1; }
@@ -37,15 +43,15 @@ check-api-types:
 migration:     ## make migration m="describe change"
 	cd backend && uv run alembic revision --autogenerate -m "$(m)"
 
-migrate:
+migrate:       ## apply database migrations
 	cd backend && uv run alembic upgrade head
 
 check: check-backend check-frontend  ## everything the `backend` and `frontend` CI jobs run (CI calls these targets)
 
-check-backend:
+check-backend: ## ruff, mypy, migrations and pytest (the `backend` CI job)
 	cd backend && uv run ruff format --check . && uv run ruff check . && uv run mypy . && uv run alembic upgrade head && uv run alembic check && uv run pytest
 
-check-frontend: check-api-types
+check-frontend: check-api-types  ## lint, typecheck, build and API-types check (the `frontend` CI job)
 	cd frontend && pnpm lint && pnpm typecheck && pnpm build
 
 audit:         ## known CVEs in runtime deps (own CI workflow, not part of `check`)
