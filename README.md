@@ -15,6 +15,8 @@ make dev                        # Postgres + API (:8000/docs) + frontend (:3000)
 
 Run the pieces in separate terminals with `make db`, `make dev-backend` and `make dev-frontend`. Full stack in containers: `make up`. All targets: `make help`.
 
+`make down` stops the compose stack, `make logs` tails it, `make db-reset` wipes the dev database (after you type `yes`).
+
 Register a sensor and send data: see [`firmware/README.md`](firmware/README.md).
 
 ## Before pushing

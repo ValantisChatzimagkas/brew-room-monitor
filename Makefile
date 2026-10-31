@@ -1,7 +1,7 @@
 # `dev` needs `wait -n` (bash >= 4.3; macOS ships 3.2, install a newer bash) and job control; /bin/sh may be dash.
 SHELL := bash
 
-.PHONY: help setup db dev dev-backend dev-frontend api-types check-api-types migration migrate check check-backend check-frontend audit up smoke
+.PHONY: help setup db dev dev-backend dev-frontend api-types check-api-types migration migrate check check-backend check-frontend audit up down logs db-reset smoke
 
 # Root .env is the only env file: its values reach every recipe (dev-*, check-*, up, smoke).
 # Inside make the file wins over a same-named shell variable; write values unquoted (Makefile syntax).
@@ -74,6 +74,18 @@ audit:         ## known CVEs in runtime deps (own CI workflow, not part of `chec
 
 up:            ## full stack in Docker
 	docker compose up --build
+
+down:          ## stop the compose stack (keeps the database volume)
+	docker compose down
+
+logs:          ## tail the compose stack's logs
+	docker compose logs -f --tail=100
+
+# No -p: like db and up this acts on the default compose project, never on smoke's brew-smoke.
+db-reset:      ## wipe the dev database volume (asks first)
+	@printf "Deletes the dev database volume (pgdata) and stops the compose stack. Type 'yes' to continue: "; \
+	read answer; [ "$$answer" = yes ] || { echo aborted; exit 1; }; \
+	docker compose down -v
 
 # Own compose project, so a run never touches the dev stack's volume. Host ports are shared with
 # the dev stack: stop it first (a clash fails fast with "port is already allocated").
