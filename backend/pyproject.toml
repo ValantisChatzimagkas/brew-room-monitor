@@ -53,3 +53,8 @@ exclude = ["alembic/"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"
+# Warnings are errors, so a deprecation surfaces in the PR that triggers it.
+# To ignore one on purpose, add "ignore::<Category>:<module>" below with a reason comment.
+filterwarnings = [
+    "error",
+]
