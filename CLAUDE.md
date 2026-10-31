@@ -40,7 +40,7 @@ Sensors (ESP32 now, in-fermenter capsules later) push readings → FastAPI store
 - Auth is tested once for every route by `backend/tests/test_auth.py`; a new route needs no auth test of its own.
 - Don't test: framework or library behaviour, things the type checker already proves, private helpers, trivial pass-throughs. No mocks of our own code or of the DB. No snapshot tests.
 - One test per behaviour. Variants of the same rule go in a table (a list or `pytest.mark.parametrize`), not copy-pasted tests. Add to the existing test file and fixtures before creating new ones.
-- Behaviour change ⇒ test change. Bug fix ⇒ failing regression test first, then the fix.
+- Behaviour change ⇒ test change. New behaviour or bug fix ⇒ write the test first (the Done-when test for new behaviour, a regression test for a bug), watch it fail, then write the code.
 
 ## Docs: one home per fact, fixed in the same commit
 - **Where things live.** `README.md`: what this is and how to run it. `ARCHITECTURE.md`: how the parts connect, the boundaries and the reasons behind them. `CLAUDE.md` files: rules for changing code (humans and agents), in the most local one that applies. `firmware/README.md`: the device contract. API reference: generated OpenAPI (`/docs`), never hand-written. Infra (`docker-compose.yml`, Dockerfiles, CI): the files are the docs; comment only the non-obvious why. The reason for a change goes in the commit body.
