@@ -18,7 +18,7 @@ Start reading here, by flow:
 
 - **Register a device:** `backend/app/routers/locations.py` creates the room, then `backend/app/routers/devices.py` creates the device pointing at it plus a random token, stores only its hash (`app/security.py`), and returns the plaintext once. A lost device is cut off with `POST /api/v1/devices/{id}/revoke`, or re-keyed with `.../rotate`.
 - **Ingest:** `backend/app/routers/readings.py` `ingest_readings`. Auth comes from `current_device` in `app/deps.py` (token hash lookup; revoke replaces the hash, so a revoked token is just an unknown one). Payload bounds are in `ReadingBatch` / `ReadingIn`, metrics and units in `Metric`, allowed kinds and range per metric in `metric_spec` (`app/models.py`), the future-timestamp check in `MAX_CLOCK_SKEW`.
-- **Show:** `frontend/src/app/page.tsx` → `getApi()` in `frontend/src/lib/api/client.ts` → `GET /api/v1/devices` and `/readings` with the admin token.
+- **Show:** `frontend/src/app/page.tsx` (formatting and staleness in `frontend/src/lib/metrics.ts` and `time.ts`) → `getApi()` in `frontend/src/lib/api/client.ts` → `GET /api/v1/devices` and `/readings` with the admin token.
 - **Contract:** FastAPI generates OpenAPI → `make api-types` → `frontend/openapi.json` + `frontend/src/lib/api/schema.d.ts`. The device-facing part is written down in `firmware/README.md`.
 - **Schema:** `backend/app/models.py` → Alembic migrations in `backend/alembic/versions/`.
 - **Run/deploy:** `docker-compose.yml` (db, backend, frontend, with healthchecks), one `Dockerfile` per app, CI in `.github/workflows/ci.yml` (its `stack` job runs `make smoke`: builds the images and boots the compose stack).
@@ -39,7 +39,7 @@ Start reading here, by flow:
 - **Devices are revoked (`revoked_at`), never deleted**, because their readings cascade on device delete.
 - **Batched ingest** (bounds in `firmware/README.md`), because sending every few minutes saves device battery.
 - **Ingest is idempotent.** A device-stamped reading is stored once per `(device, metric, recorded_at)`; a resend is a no-op, so a device that lost a 201 can retry its buffer. Readings without `recorded_at` are exempt, because they share the receive time and would clash. A partial unique index on `Reading` enforces it (`backend/app/models.py`).
-- **Index `(device_id, metric, recorded_at)`** serves per-device and per-metric history; a second, partial unique index on the same columns does the dedupe. The dashboard's current query (all readings, newest first) doesn't filter on those columns, so it can't use this index; add a `recorded_at` index if that query gets slow.
+- **Index `(device_id, metric, recorded_at)`** serves per-device and per-metric history; a second, partial unique index on the same columns does the dedupe. The dashboard reads the newest reading per device and metric (`limit=1`), which the index serves.
 
 ## Runtime and deploy
 
@@ -52,5 +52,5 @@ Start reading here, by flow:
 
 ## Extending it
 
-- **New metric:** add a `Metric` value → add its case in `metric_spec` (mypy forces this) → `make api-types` → add its label in `METRIC_LABEL` in `page.tsx` (typecheck forces this) → list it in `firmware/README.md`.
+- **New metric:** add a `Metric` value → add its case in `metric_spec` (mypy forces this) → `make api-types` → add its entry to `METRIC_INFO` (typecheck forces this) and `METRIC_ORDER` (a test forces this) in `frontend/src/lib/metrics.ts` → list it in `firmware/README.md`.
 - **New device type:** add a `DeviceKind` value if it differs from the existing ones, and add it to the `kinds` of each metric it may send in `metric_spec` (mypy does not catch a missing kind: its batches would all get 422). If it can't send the v1 payload, see `firmware/README.md` (Hardware notes) and the `/api/v1` guardrail.

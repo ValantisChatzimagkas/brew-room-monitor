@@ -27,10 +27,10 @@ Next 16 with `cacheComponents` on. APIs differ from older Next: check `node_modu
 - `eslint.config.mjs` enforces the above (unknown classes, arbitrary values, raw form elements, primitive and foreign imports). Fix the code; don't disable a rule inline.
 
 ## Quality bar
-- `pnpm lint` (zero warnings), `pnpm typecheck`, `pnpm build` all pass (`make check-frontend`).
+- `pnpm lint` (zero warnings), `pnpm typecheck`, `pnpm test`, `pnpm build` all pass (`make check-frontend`).
 - TypeScript strict; no `any`, no `as` casts to silence errors, no `@ts-ignore`.
 - Format numbers with units in the UI, timestamps converted to local time at render.
 
 ## Tests
-- No test runner yet, on purpose: types, lint and `next build` cover the current code.
-- Keep logic out of components: pure helpers (formatting, aggregation) go in `src/lib/`. When the first one with real branching shows up, add Vitest for it and nothing else. No component snapshot tests.
+- Vitest runs pure helpers in `src/lib/*.test.ts` (`pnpm test`, part of `make check-frontend`). No component or snapshot tests.
+- Keep logic out of components: pure helpers (formatting, aggregation) go in `src/lib/`.

@@ -65,8 +65,8 @@ check: check-backend check-frontend  ## everything the `backend` and `frontend` 
 check-backend: ## ruff, mypy, migrations and pytest (the `backend` CI job)
 	cd backend && uv run ruff format --check . && uv run ruff check . && uv run mypy . && uv run alembic upgrade head && uv run alembic check && uv run pytest
 
-check-frontend: check-api-types  ## lint, typecheck, build and API-types check (the `frontend` CI job)
-	cd frontend && pnpm lint && pnpm typecheck && pnpm build
+check-frontend: check-api-types  ## lint, typecheck, test, build and API-types check (the `frontend` CI job)
+	cd frontend && pnpm lint && pnpm typecheck && pnpm test && pnpm build
 
 audit:         ## known CVEs in runtime deps (own CI workflow, not part of `check`)
 	cd backend && uv export --locked --no-dev --no-emit-project -q | uvx pip-audit@2.10.1 -r /dev/stdin --disable-pip --strict
