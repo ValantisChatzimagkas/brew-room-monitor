@@ -26,3 +26,8 @@ export function parseDeviceId(raw: string): number | null {
 export function toPoints(newestFirst: readonly { recorded_at: string; value: number }[]): ChartPoint[] {
   return newestFirst.map((r) => ({ time: Date.parse(r.recorded_at), value: r.value })).reverse();
 }
+
+/** Rows come newest first, so a capped query has dropped the oldest rows in the range. */
+export function isPartial(count: number): boolean {
+  return count >= READINGS_LIMIT;
+}

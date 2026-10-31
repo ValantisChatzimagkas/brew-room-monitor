@@ -2,11 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { AutoRefresh } from "@/components/auto-refresh";
 import { MetricChart } from "@/components/metric-chart";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getApi } from "@/lib/api/client";
-import { parseDeviceId, parseRange, RANGES, rangeSince, READINGS_LIMIT, toPoints } from "@/lib/history";
+import { isPartial, parseDeviceId, parseRange, RANGES, rangeSince, READINGS_LIMIT, toPoints } from "@/lib/history";
 import { METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
 
 export default function DevicePage({ params, searchParams }: PageProps<"/devices/[id]">) {
@@ -18,6 +19,7 @@ export default function DevicePage({ params, searchParams }: PageProps<"/devices
       <Suspense fallback={<p className="text-muted-foreground">Loading readings…</p>}>
         <DeviceDetail params={params} searchParams={searchParams} />
       </Suspense>
+      <AutoRefresh />
     </main>
   );
 }
@@ -83,6 +85,11 @@ async function DeviceDetail({
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                {isPartial(rows.length) && (
+                  <p className="mb-2 text-sm text-stale">
+                    Partial: showing only the newest {READINGS_LIMIT} readings in this range.
+                  </p>
+                )}
                 <MetricChart metric={metric} points={toPoints(rows)} from={since.getTime()} to={now.getTime()} />
               </CardContent>
             </Card>

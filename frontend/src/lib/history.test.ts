@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseDeviceId, parseRange, rangeSince, toPoints } from "./history";
+import { isPartial, parseDeviceId, parseRange, rangeSince, toPoints } from "./history";
 
 describe("parseRange", () => {
   it.each([
@@ -60,5 +60,16 @@ describe("toPoints", () => {
 
   it("returns nothing for no rows", () => {
     expect(toPoints([])).toEqual([]);
+  });
+});
+
+describe("isPartial", () => {
+  it.each([
+    [0, false],
+    [4999, false],
+    [5000, true],
+    [5001, true],
+  ])("%d rows -> %s", (count, expected) => {
+    expect(isPartial(count)).toBe(expected);
   });
 });
