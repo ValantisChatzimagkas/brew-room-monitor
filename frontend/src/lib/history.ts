@@ -1,6 +1,6 @@
 export const RANGES = ["6h", "24h"] as const;
-export type Range = (typeof RANGES)[number];
-export const DEFAULT_RANGE: Range = "24h";
+type Range = (typeof RANGES)[number];
+const DEFAULT_RANGE: Range = "24h";
 
 /** API cap on `GET /readings` (`le=5000` in backend/app/routers/readings.py). */
 export const READINGS_LIMIT = 5000;

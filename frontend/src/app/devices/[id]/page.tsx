@@ -37,6 +37,7 @@ async function DeviceDetail({
   const api = await getApi(); // must come before new Date(): it opts the render out of prerendering
   const now = new Date();
   const since = rangeSince(range, now);
+  // No GET /devices/{id}: list at the route's max limit and find. A device beyond the first 500 by name 404s.
   const devices = await api.GET("/api/v1/devices", { params: { query: { limit: 500 } } });
   if (devices.error) throw new Error("Failed to load data from the API");
   const device = devices.data.find((d) => d.id === id);
