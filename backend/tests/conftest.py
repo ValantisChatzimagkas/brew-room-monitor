@@ -1,13 +1,18 @@
 import os
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
+from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, make_url, text
 from sqlmodel import Session, SQLModel
 
+from alembic import command
+
 # Tests run against real Postgres (a dedicated *_test database), never SQLite:
-# timezone handling and constraints must behave exactly like production.
+# timezone handling and constraints must behave exactly like production. The schema comes from
+# the Alembic migrations, so a wrong migration fails the suite instead of production.
 _base_url = make_url(
     os.environ.get("DATABASE_URL", "postgresql+psycopg://brew:brew@localhost:5432/brew")
 )
@@ -34,8 +39,12 @@ def _database() -> Iterator[None]:
         if not exists:
             conn.execute(text(f'CREATE DATABASE "{TEST_DB_URL.database}"'))
     admin.dispose()
-    SQLModel.metadata.drop_all(engine)
-    SQLModel.metadata.create_all(engine)
+    # Wipe the schema (not just the tables) so a leftover alembic_version or old tables can't
+    # make `upgrade head` fail.
+    with engine.begin() as conn:
+        conn.execute(text("DROP SCHEMA public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
+    command.upgrade(Config(str(Path(__file__).parents[1] / "alembic.ini")), "head")
     yield
     engine.dispose()
 

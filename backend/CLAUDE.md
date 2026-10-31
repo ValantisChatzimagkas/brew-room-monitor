@@ -34,7 +34,7 @@
 - Config only via `get_settings()`; never read `os.environ` in app code.
 
 ## Tests (policy in root `CLAUDE.md`)
-- Real Postgres (`brew_test` DB, created automatically; needs `make db`). Never SQLite, never a mocked session.
+- Real Postgres (`brew_test` DB, created automatically; needs `make db`). Never SQLite, never a mocked session. `_database` in `tests/conftest.py` builds its schema with `alembic upgrade head` once per session (tables are emptied between tests), so a migration is tested the way production runs it.
 - Go through the HTTP API with the `client`, `admin_headers`, `device_headers` fixtures in `tests/conftest.py`. Add a fixture there only when a second test needs it.
 - One file per router (`tests/test_<router>.py`), plus `tests/test_auth.py` as the cross-cutting exception. Plain unit tests only for pure functions in `app/services/` and startup validation in `app/config.py` (`tests/test_config.py`).
 - `tests/test_auth.py` walks every registered route (missing, unknown and wrong-kind token → 401), so don't write per-route auth tests. A new device-token route goes in `DEVICE_ROUTES`, a new public route in `EXEMPT_PATHS` (needs a reason).

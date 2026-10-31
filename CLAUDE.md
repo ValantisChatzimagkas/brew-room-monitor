@@ -25,7 +25,7 @@ Sensors (ESP32 now, in-fermenter capsules later) push readings → FastAPI store
 - **Secrets:** env vars only, never committed, never in `NEXT_PUBLIC_*`, never logged or echoed in responses/errors. The admin token stays on servers; devices get their own per-device token.
 - **The frontend has no user login yet.** Anyone who can reach it sees what it renders, and every Server Action is a public POST endpoint. So: no mutating Server Actions and no public deployment of the frontend until auth exists.
 - **Device API is versioned** (`/api/v1`). Flashed devices can't be updated easily: never make a breaking change to `POST /api/v1/readings`; add `/v2` instead.
-- **Schema changes go through Alembic.** No `create_all` outside tests. No Postgres native enums (use strings + Python `StrEnum`).
+- **Schema changes go through Alembic.** No `create_all` anywhere, tests included. No Postgres native enums (use strings + Python `StrEnum`).
 
 ## Before writing code: extend, don't add
 - **Search first.** Before adding a function, schema, dependency, component, route or test fixture, `grep` for one that already does something close. Extend it instead of adding a parallel one. In your summary, name what you reused or why nothing fit.
