@@ -4,24 +4,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-@pytest.mark.parametrize(
-    ("method", "path"),
-    [
-        ("GET", "/api/v1/devices"),
-        ("POST", "/api/v1/devices"),
-        ("PATCH", "/api/v1/devices/1"),
-        ("POST", "/api/v1/devices/1/revoke"),
-        ("POST", "/api/v1/devices/1/rotate"),
-    ],
-)
-def test_requires_admin_token(
-    client: TestClient, device_headers: dict[str, str], method: str, path: str
-) -> None:
-    # Missing, unknown, and a valid device token (wrong kind) are all rejected.
-    for headers in ({}, {"Authorization": "Bearer nope"}, device_headers):
-        assert client.request(method, path, json={}, headers=headers).status_code == 401
-
-
 def test_create_returns_token_once(
     client: TestClient, admin_headers: dict[str, str], location_id: int
 ) -> None:

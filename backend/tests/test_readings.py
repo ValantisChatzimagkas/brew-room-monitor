@@ -26,19 +26,6 @@ def test_ingest_and_list(
     assert datetime.fromisoformat(temps[0]["recorded_at"]) == datetime.fromisoformat(ts)
 
 
-def test_ingest_requires_device_token(client: TestClient, admin_headers: dict[str, str]) -> None:
-    # Out-of-range value on purpose: auth runs before body validation, so this is still 401.
-    batch = {
-        "readings": [
-            {"metric": "temperature_c", "value": 20},
-            {"metric": "humidity_pct", "value": 101},
-        ]
-    }
-    assert client.post("/api/v1/readings", json=batch).status_code == 401
-    # The admin token is not a device token.
-    assert client.post("/api/v1/readings", json=batch, headers=admin_headers).status_code == 401
-
-
 def test_rejects_bad_payloads(client: TestClient, device_headers: dict[str, str]) -> None:
     future = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
     bad_batches = [

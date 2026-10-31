@@ -36,7 +36,8 @@ Sensors (ESP32 now, in-fermenter capsules later) push readings → FastAPI store
 
 ## Tests: few, and each one earns its place
 - Test behaviour through the boundary someone actually uses (HTTP API, device contract, rendered page), not internals. A refactor that keeps behaviour must not break a test.
-- Must test: auth on each new route (missing token, wrong token kind), input bounds on anything a device sends, every status code in `firmware/README.md`, domain logic (insights) including edge cases.
+- Must test: input bounds on anything a device sends, every status code in `firmware/README.md`, domain logic (insights) including edge cases.
+- Auth is tested once for every route by `backend/tests/test_auth.py`; a new route needs no auth test of its own.
 - Don't test: framework or library behaviour, things the type checker already proves, private helpers, trivial pass-throughs. No mocks of our own code or of the DB. No snapshot tests.
 - One test per behaviour. Variants of the same rule go in a table (a list or `pytest.mark.parametrize`), not copy-pasted tests. Add to the existing test file and fixtures before creating new ones.
 - Behaviour change ⇒ test change. Bug fix ⇒ failing regression test first, then the fix.

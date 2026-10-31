@@ -36,7 +36,8 @@
 ## Tests (policy in root `CLAUDE.md`)
 - Real Postgres (`brew_test` DB, created automatically; needs `make db`). Never SQLite, never a mocked session.
 - Go through the HTTP API with the `client`, `admin_headers`, `device_headers` fixtures in `tests/conftest.py`. Add a fixture there only when a second test needs it.
-- One file per router (`tests/test_<router>.py`). Plain unit tests only for pure functions in `app/services/` and startup validation in `app/config.py` (`tests/test_config.py`).
+- One file per router (`tests/test_<router>.py`), plus `tests/test_auth.py` as the cross-cutting exception. Plain unit tests only for pure functions in `app/services/` and startup validation in `app/config.py` (`tests/test_config.py`).
+- `tests/test_auth.py` walks every registered route (missing, unknown and wrong-kind token → 401), so don't write per-route auth tests. A new device-token route goes in `DEVICE_ROUTES`, a new public route in `EXEMPT_PATHS` (needs a reason).
 - See `test_rejects_bad_payloads` in `tests/test_readings.py` for the table style: many invalid inputs, one test.
 
 ## Deploy targets
