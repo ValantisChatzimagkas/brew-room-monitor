@@ -1,4 +1,7 @@
-.PHONY: help setup db dev-backend dev-frontend api-types check-api-types migration migrate check check-backend check-frontend audit up smoke
+# `dev` needs `wait -n` (bash >= 4.3; macOS ships 3.2, install a newer bash) and job control; /bin/sh may be dash.
+SHELL := bash
+
+.PHONY: help setup db dev dev-backend dev-frontend api-types check-api-types migration migrate check check-backend check-frontend audit up smoke
 
 # Root .env is the only env file: its values reach every recipe (dev-*, check-*, up, smoke).
 # Inside make the file wins over a same-named shell variable; write values unquoted (Makefile syntax).
@@ -20,6 +23,17 @@ setup:         ## create .env with a fresh ADMIN_TOKEN (skips an existing file)
 
 db:            ## start Postgres only, wait until it accepts connections
 	docker compose up -d --wait db
+
+# One process group per server (set -m), so the kill also reaches the reloader's worker and next-server.
+# Under set -m a terminal Ctrl-C or hangup reaches only make's own group, hence the traps. No set -e:
+# a failing `wait -n` must not skip killing the survivor. Postgres stays up: `make down` stops it.
+dev: db        ## Postgres + API + frontend with reload; Ctrl-C stops both servers
+	@set -m; \
+	stop() { trap '' INT TERM HUP; kill -TERM -$$api -$$web 2>/dev/null; wait; exit $$1; }; \
+	trap 'stop 130' INT; trap 'stop 143' TERM; trap 'stop 129' HUP; \
+	$(MAKE) dev-backend & api=$$!; \
+	$(MAKE) dev-frontend & web=$$!; \
+	wait -n; rc=$$?; kill -TERM -$$api -$$web 2>/dev/null; wait; exit $$rc
 
 dev-backend:   ## API with reload on :8000
 	cd backend && uv run alembic upgrade head && uv run fastapi dev

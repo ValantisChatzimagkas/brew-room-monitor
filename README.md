@@ -10,12 +10,10 @@ Needs Docker, [uv](https://docs.astral.sh/uv/), Node 22 + pnpm.
 
 ```sh
 make setup                      # .env from .env.example, with a generated ADMIN_TOKEN
-make db                         # Postgres, waits until it is ready
-make dev-backend                # http://localhost:8000/docs
-make dev-frontend               # http://localhost:3000
+make dev                        # Postgres + API (:8000/docs) + frontend (:3000); Ctrl-C stops the servers, Postgres stays up
 ```
 
-Full stack in containers: `make up`. All targets: `make help`.
+Run the pieces in separate terminals with `make db`, `make dev-backend` and `make dev-frontend`. Full stack in containers: `make up`. All targets: `make help`.
 
 Register a sensor and send data: see [`firmware/README.md`](firmware/README.md).
 
