@@ -9,7 +9,8 @@ from app.config import get_settings
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Keep existing loggers: the test suite runs this in-process, after the app's loggers exist.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = SQLModel.metadata
 database_url = get_settings().database_url
