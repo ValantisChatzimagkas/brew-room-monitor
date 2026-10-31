@@ -6,10 +6,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """All config comes from env vars (or backend/.env locally). Never read os.environ elsewhere."""
+    """All config comes from env vars (locally the root .env, loaded by make).
+
+    Never read os.environ elsewhere.
+    """
 
     # hide_input_in_errors: otherwise a validation error prints the raw env values (secrets).
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
+    model_config = SettingsConfigDict(extra="ignore", hide_input_in_errors=True)
 
     environment: Literal["local", "test", "production"] = "local"
     database_url: str = "postgresql+psycopg://brew:brew@localhost:5432/brew"

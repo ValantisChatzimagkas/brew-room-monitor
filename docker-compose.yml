@@ -16,6 +16,8 @@ services:
 
   backend:
     build: ./backend
+    # DATABASE_URL / API_URL are literals on purpose: the root .env holds native-dev (localhost)
+    # values, so do not add `env_file:`. Only ADMIN_TOKEN is taken from it.
     environment:
       DATABASE_URL: postgresql+psycopg://brew:brew@db:5432/brew
       ADMIN_TOKEN: ${ADMIN_TOKEN:?set ADMIN_TOKEN in .env}
