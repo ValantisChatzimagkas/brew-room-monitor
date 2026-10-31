@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 
+import { ReadingTime } from "@/components/reading-time";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getApi, type Device, type Reading } from "@/lib/api/client";
 import { formatValue, METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
@@ -86,7 +87,7 @@ function DeviceCard({ device, latest, now }: { device: Device; latest: Reading[]
                   <dt className="text-muted-foreground">{METRIC_INFO[r.metric].label}</dt>
                   <dd className="tabular-nums">{formatValue(r.metric, r.value)}</dd>
                   <dd className={stale ? "text-stale" : "text-muted-foreground"}>
-                    {formatAge(new Date(r.recorded_at), now)}
+                    <ReadingTime iso={r.recorded_at}>{formatAge(new Date(r.recorded_at), now)}</ReadingTime>
                   </dd>
                 </div>
               ))}
