@@ -33,7 +33,7 @@ dev: db        ## Postgres + API + frontend with reload; Ctrl-C stops both serve
 	trap 'stop 130' INT; trap 'stop 143' TERM; trap 'stop 129' HUP; \
 	$(MAKE) dev-backend & api=$$!; \
 	$(MAKE) dev-frontend & web=$$!; \
-	wait -n; rc=$$?; kill -TERM -$$api -$$web 2>/dev/null; wait; exit $$rc
+	wait -n; stop $$?
 
 dev-backend:   ## API with reload on :8000
 	cd backend && uv run alembic upgrade head && uv run fastapi dev
