@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -72,7 +73,11 @@ function DeviceCard({ device, latest, now }: { device: Device; latest: Reading[]
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between gap-2">
-            <h3>{device.name}</h3>
+            <h3>
+              <Link href={`/devices/${device.id}`} className="hover:underline">
+                {device.name}
+              </Link>
+            </h3>
             {stale && <span className="text-sm font-normal text-stale">Stale</span>}
           </CardTitle>
           <CardDescription>
