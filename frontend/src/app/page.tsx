@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 
+import { AutoRefresh } from "@/components/auto-refresh";
 import { ReadingTime } from "@/components/reading-time";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getApi, type Device, type Reading } from "@/lib/api/client";
@@ -14,6 +15,7 @@ export default function Home() {
       <Suspense fallback={<p className="text-muted-foreground">Loading sensors…</p>}>
         <DeviceList />
       </Suspense>
+      <AutoRefresh />
     </main>
   );
 }
