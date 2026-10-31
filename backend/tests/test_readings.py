@@ -123,6 +123,26 @@ def test_backlog_accepted_and_ordered_by_recorded_at(
     assert times == sorted(times, reverse=True)
 
 
+def test_list_readings_since_is_inclusive(
+    client: TestClient, device_headers: dict[str, str], admin_headers: dict[str, str]
+) -> None:
+    batch = {
+        "readings": [
+            {"metric": "temperature_c", "value": 18.0 + minute, "recorded_at": ts}
+            for minute, ts in enumerate(
+                ["2026-01-01T11:59:00Z", "2026-01-01T12:00:00Z", "2026-01-01T12:01:00Z"]
+            )
+        ]
+    }
+    assert client.post("/api/v1/readings", json=batch, headers=device_headers).status_code == 201
+
+    res = client.get(
+        "/api/v1/readings", params={"since": "2026-01-01T12:00:00+00:00"}, headers=admin_headers
+    )
+    assert res.status_code == 200
+    assert [r["value"] for r in res.json()] == [20.0, 19.0]  # 12:01 then 12:00, newest first
+
+
 def test_readings_without_recorded_at_are_never_deduplicated(
     client: TestClient, device_headers: dict[str, str], admin_headers: dict[str, str]
 ) -> None:
