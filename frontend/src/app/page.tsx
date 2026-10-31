@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getApi, type Device, type Reading } from "@/lib/api/client";
 import { formatValue, METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
+import { groupByRoom } from "@/lib/rooms";
 import { formatAge, isStale } from "@/lib/time";
 
 export default function Home() {
@@ -43,12 +44,21 @@ async function DeviceList() {
     }),
   );
 
+  const entries = devices.data.map((device, i) => ({ device, latest: latestPerDevice[i], location: device.location }));
+
   return (
-    <ul className="grid gap-4 sm:grid-cols-2">
-      {devices.data.map((device, i) => (
-        <DeviceCard key={device.id} device={device} latest={latestPerDevice[i]} now={now} />
+    <div className="grid gap-8">
+      {groupByRoom(entries).map((group) => (
+        <section key={group.room ?? "no-room"}>
+          <h2 className="mb-3 text-lg font-medium">{group.room ?? "No room"}</h2>
+          <ul className="grid gap-4 sm:grid-cols-2">
+            {group.items.map(({ device, latest }) => (
+              <DeviceCard key={device.id} device={device} latest={latest} now={now} />
+            ))}
+          </ul>
+        </section>
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -59,11 +69,11 @@ function DeviceCard({ device, latest, now }: { device: Device; latest: Reading[]
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between gap-2">
-            <h2>{device.name}</h2>
+            <h3>{device.name}</h3>
             {stale && <span className="text-sm font-normal text-stale">Stale</span>}
           </CardTitle>
           <CardDescription>
-            {device.kind} {device.location && `· ${device.location.name}`}
+            {device.kind}
           </CardDescription>
         </CardHeader>
         <CardContent>
