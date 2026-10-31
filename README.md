@@ -9,7 +9,7 @@ Ambient conditions of the brewing room(s) and yeast insights, fed by ESP32 / in-
 Needs Docker, [uv](https://docs.astral.sh/uv/), Node 22 + pnpm.
 
 ```sh
-make setup                      # env files from .env.example, with a generated ADMIN_TOKEN
+make setup                      # .env from .env.example, with a generated ADMIN_TOKEN
 make db                         # Postgres, waits until it is ready
 make dev-backend                # http://localhost:8000/docs
 make dev-frontend               # http://localhost:3000
