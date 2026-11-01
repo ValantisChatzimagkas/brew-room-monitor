@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -10,6 +10,8 @@ from app.models import Batch, BatchCreate, BatchPublic, BatchUpdate, Device, utc
 router = APIRouter(prefix="/batches", tags=["batches"], dependencies=[AdminDep])
 
 _OVERLAP = "Batch overlaps another batch on this device"
+# Far below any brew, and far above what Postgres timestamptz rejects with a 500.
+_EARLIEST = datetime(2000, 1, 1, tzinfo=UTC)
 
 
 @router.get("")
@@ -47,6 +49,10 @@ def update_batch(batch_id: int, payload: BatchUpdate, session: SessionDep) -> Ba
 def _check_window(started_at: datetime, ended_at: datetime | None) -> None:
     # Also keeps an inverted range from reaching Postgres, where tstzrange raises (a 500).
     now = utcnow()
+    if started_at < _EARLIEST:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "started_at is too far in the past"
+        )
     if started_at > now or (ended_at is not None and ended_at > now):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "Batch times cannot be in the future"

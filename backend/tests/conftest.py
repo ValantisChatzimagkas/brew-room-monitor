@@ -1,5 +1,6 @@
 import os
 from collections.abc import Callable, Iterator
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -106,3 +107,21 @@ def make_device(
 ) -> Callable[[str], tuple[int, dict[str, str]]]:
     """Register a new in-vessel device; returns its id and its token headers."""
     return lambda name: _register_device(client, admin_headers, {"name": name, "kind": "in_vessel"})
+
+
+@pytest.fixture
+def make_batch(client: TestClient, admin_headers: dict[str, str]) -> Callable[..., int]:
+    """Create a batch on a device over a window (open when `ended_at` is None); returns its id."""
+
+    def make(device_id: int, started_at: datetime, ended_at: datetime | None = None) -> int:
+        body: dict[str, object] = {
+            "name": "ipa",
+            "device_id": device_id,
+            "started_at": started_at.isoformat(),
+            "ended_at": ended_at.isoformat() if ended_at else None,
+        }
+        res = client.post("/api/v1/batches", json=body, headers=admin_headers)
+        assert res.status_code == 201
+        return int(res.json()["id"])
+
+    return make

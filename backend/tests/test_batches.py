@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from fastapi.testclient import TestClient
 
 MakeDevice = Callable[[str], tuple[int, dict[str, str]]]
+MakeBatch = Callable[..., int]
 
 JAN_1 = datetime(2026, 1, 1, tzinfo=UTC)
 JAN_5 = datetime(2026, 1, 5, tzinfo=UTC)
@@ -66,6 +67,7 @@ def test_create_rejects_bad_payloads(
         {**ok, "device_id": device_id + 1000},
         {**ok, "started_at": "2026-01-01T12:00:00"},
         {**ok, "started_at": future},
+        {**ok, "started_at": "0001-01-01T00:00:00+05:00"},  # out of Postgres's timestamptz range
         {**ok, "started_at": JAN_10.isoformat(), "ended_at": JAN_1.isoformat()},
         {**ok, "started_at": JAN_1.isoformat(), "ended_at": future},
     ]
@@ -104,27 +106,14 @@ def test_overlap_conflicts(
     assert _create(client, admin_headers, device_b, open_start) == 201
 
 
-def _create_ok(
+def test_end_batch_then_start_next(
     client: TestClient,
     admin_headers: dict[str, str],
-    device_id: int,
-    started_at: datetime,
-    ended_at: datetime | None = None,
-) -> int:
-    body: dict[str, object] = {"name": "ipa", "device_id": device_id}
-    body["started_at"] = started_at.isoformat()
-    if ended_at is not None:
-        body["ended_at"] = ended_at.isoformat()
-    res = client.post("/api/v1/batches", json=body, headers=admin_headers)
-    assert res.status_code == 201
-    return int(res.json()["id"])
-
-
-def test_end_batch_then_start_next(
-    client: TestClient, admin_headers: dict[str, str], make_device: MakeDevice
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
 ) -> None:
     device_id, _ = make_device("vessel-a")
-    batch_id = _create_ok(client, admin_headers, device_id, JAN_1)
+    batch_id = make_batch(device_id, JAN_1)
     assert _create(client, admin_headers, device_id, JAN_10) == 409  # first one is still open
 
     res = client.patch(
@@ -136,10 +125,13 @@ def test_end_batch_then_start_next(
 
 
 def test_end_rejects_bad_times(
-    client: TestClient, admin_headers: dict[str, str], make_device: MakeDevice
+    client: TestClient,
+    admin_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
 ) -> None:
     device_id, _ = make_device("vessel-a")
-    batch_id = _create_ok(client, admin_headers, device_id, JAN_5)
+    batch_id = make_batch(device_id, JAN_5)
     future = datetime.now(UTC) + timedelta(hours=1)
     for ended_at, expected in ((JAN_1, 422), (future, 422), (JAN_5, 200)):  # JAN_5 voids it
         res = client.patch(
@@ -151,11 +143,14 @@ def test_end_rejects_bad_times(
 
 
 def test_update_overlap_conflicts(
-    client: TestClient, admin_headers: dict[str, str], make_device: MakeDevice
+    client: TestClient,
+    admin_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
 ) -> None:
     device_id, _ = make_device("vessel-a")
-    first = _create_ok(client, admin_headers, device_id, JAN_1, JAN_5)
-    second = _create_ok(client, admin_headers, device_id, JAN_10, JAN_15)
+    first = make_batch(device_id, JAN_1, JAN_5)
+    second = make_batch(device_id, JAN_10, JAN_15)
 
     # Each change would overlap a neighbour.
     cases = [
@@ -169,10 +164,13 @@ def test_update_overlap_conflicts(
 
 
 def test_update_rejects_nulls_and_unknown_id(
-    client: TestClient, admin_headers: dict[str, str], make_device: MakeDevice
+    client: TestClient,
+    admin_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
 ) -> None:
     device_id, _ = make_device("vessel-a")
-    batch_id = _create_ok(client, admin_headers, device_id, JAN_1)
+    batch_id = make_batch(device_id, JAN_1)
     for changes in ({"name": None}, {"name": ""}, {"started_at": None}):
         res = client.patch(f"/api/v1/batches/{batch_id}", json=changes, headers=admin_headers)
         assert res.status_code == 422, changes

@@ -258,10 +258,15 @@ def test_value_bounds_per_metric(
 
 
 MakeDevice = Callable[[str], tuple[int, dict[str, str]]]
+MakeBatch = Callable[..., int]
+
+
+def _dt(day: int) -> datetime:
+    return datetime(2026, 1, day, tzinfo=UTC)
 
 
 def _day(day: int) -> str:
-    return datetime(2026, 1, day, tzinfo=UTC).isoformat()
+    return _dt(day).isoformat()
 
 
 def _ingest(client: TestClient, headers: dict[str, str], metric: str, days: list[int]) -> None:
@@ -271,21 +276,6 @@ def _ingest(client: TestClient, headers: dict[str, str], metric: str, days: list
     assert res.status_code == 201
 
 
-def _batch(
-    client: TestClient,
-    admin_headers: dict[str, str],
-    device_id: int,
-    started: int,
-    ended: int | None = None,
-) -> int:
-    body: dict[str, object] = {"name": "ipa", "device_id": device_id, "started_at": _day(started)}
-    if ended is not None:
-        body["ended_at"] = _day(ended)
-    res = client.post("/api/v1/batches", json=body, headers=admin_headers)
-    assert res.status_code == 201
-    return int(res.json()["id"])
-
-
 def _days(client: TestClient, admin_headers: dict[str, str], **params: str | int) -> list[int]:
     res = client.get("/api/v1/readings", params=params, headers=admin_headers)
     assert res.status_code == 200
@@ -293,14 +283,17 @@ def _days(client: TestClient, admin_headers: dict[str, str], **params: str | int
 
 
 def test_batch_filter_returns_only_its_window(
-    client: TestClient, admin_headers: dict[str, str], make_device: MakeDevice
+    client: TestClient,
+    admin_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
 ) -> None:
     a_id, a_headers = make_device("vessel-a")
     _, b_headers = make_device("vessel-b")
     _ingest(client, a_headers, "temperature_c", [9, 10, 15, 20, 21])
     _ingest(client, b_headers, "temperature_c", [15])
-    first = _batch(client, admin_headers, a_id, 10, 20)
-    second = _batch(client, admin_headers, a_id, 20)  # open, starts where the first ends
+    first = make_batch(a_id, _dt(10), _dt(20))
+    second = make_batch(a_id, _dt(20))  # open, starts where the first ends
 
     # Start inclusive, end exclusive, other devices excluded.
     assert _days(client, admin_headers, batch_id=first) == [15, 10]
@@ -321,13 +314,16 @@ def test_batch_filter_returns_only_its_window(
 
 
 def test_batch_filter_composes_with_other_params(
-    client: TestClient, admin_headers: dict[str, str], make_device: MakeDevice
+    client: TestClient,
+    admin_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
 ) -> None:
     a_id, a_headers = make_device("vessel-a")
     b_id, _ = make_device("vessel-b")
     _ingest(client, a_headers, "temperature_c", [11, 12, 15])
     _ingest(client, a_headers, "specific_gravity", [13])
-    batch = _batch(client, admin_headers, a_id, 10, 20)
+    batch = make_batch(a_id, _dt(10), _dt(20))
 
     assert _days(client, admin_headers, batch_id=batch) == [15, 13, 12, 11]
     assert _days(client, admin_headers, batch_id=batch, metric="temperature_c") == [15, 12, 11]
