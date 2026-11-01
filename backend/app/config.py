@@ -18,10 +18,26 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://brew:brew@localhost:5432/brew"
     # Shared secret for the frontend server / admin calls. Devices use their own per-device tokens.
     admin_token: SecretStr
+    # User sign-in (docs/decisions/0001): the issuer must equal the token's `iss` exactly.
+    # Unset (or empty) means user routes return 401, never "skip verification".
+    auth_issuer: str | None = None
+    auth_audience: str | None = None
 
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
+
+    @model_validator(mode="after")
+    def _auth_config(self) -> Self:
+        # Messages never echo the values.
+        if bool(self.auth_issuer) != bool(self.auth_audience):
+            raise ValueError("AUTH_ISSUER and AUTH_AUDIENCE must be set together")
+        if self.is_production:
+            if not self.auth_issuer:
+                raise ValueError("AUTH_ISSUER and AUTH_AUDIENCE are required in production")
+            if not self.auth_issuer.startswith("https://"):
+                raise ValueError("AUTH_ISSUER must start with https:// in production")
+        return self
 
     @model_validator(mode="after")
     def _strong_admin_token_in_production(self) -> Self:

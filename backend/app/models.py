@@ -9,7 +9,7 @@ from enum import StrEnum
 from typing import NamedTuple, Self
 
 from pydantic import AwareDatetime, ConfigDict, model_validator
-from sqlalchemy import Column, DateTime, Index, String, func, text
+from sqlalchemy import Column, DateTime, Index, String, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import ExcludeConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -196,6 +196,25 @@ class BatchPublic(BatchBase):
     device_id: int
     started_at: datetime
     ended_at: datetime | None
+
+
+# --- User -----------------------------------------------------------------
+
+
+class User(SQLModel, table=True):
+    # "app_user", not "user": `user` is reserved in Postgres and the test truncate does not quote.
+    __tablename__ = "app_user"
+    __table_args__ = (UniqueConstraint("issuer", "subject", name="uq_app_user_issuer_subject"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    # Identity is the provider's (iss, sub) pair, never email: a second issuer can't merge people.
+    issuer: str = Field(max_length=512)
+    subject: str = Field(max_length=255)
+    created_at: datetime = Field(default_factory=utcnow, sa_column=tz_column())
+
+
+class UserPublic(SQLModel):
+    id: int
 
 
 # --- Reading --------------------------------------------------------------
