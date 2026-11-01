@@ -7,6 +7,7 @@ from sqlmodel import col, select
 
 from app.deps import AdminDep, DeviceDep, SessionDep
 from app.models import (
+    Batch,
     IngestResult,
     Metric,
     Reading,
@@ -63,6 +64,7 @@ def ingest_readings(batch: ReadingBatch, device: DeviceDep, session: SessionDep)
 def list_readings(
     session: SessionDep,
     device_id: int | None = None,
+    batch_id: int | None = None,
     metric: Metric | None = None,
     since: datetime | None = None,
     limit: Annotated[int, Query(ge=1, le=5000)] = 500,
@@ -70,6 +72,16 @@ def list_readings(
     query = select(Reading).order_by(col(Reading.recorded_at).desc()).limit(limit)
     if device_id is not None:
         query = query.where(Reading.device_id == device_id)
+    if batch_id is not None:
+        # Membership is derived, not stamped: the batch's device within [started_at, ended_at).
+        batch = session.get(Batch, batch_id)
+        if batch is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Batch not found")
+        query = query.where(
+            Reading.device_id == batch.device_id,
+            col(Reading.recorded_at) >= batch.started_at,
+            col(Reading.recorded_at) < (batch.ended_at or utcnow()),
+        )
     if metric is not None:
         query = query.where(Reading.metric == metric)
     if since is not None:

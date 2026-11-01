@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -254,3 +255,84 @@ def test_value_bounds_per_metric(
         mixed = {"readings": [{"metric": metric, "value": low}, {"metric": metric, "value": bad}]}
         assert client.post("/api/v1/readings", json=mixed, headers=headers).status_code == 422
         assert stored() == 2
+
+
+MakeDevice = Callable[[str], tuple[int, dict[str, str]]]
+MakeBatch = Callable[..., int]
+
+
+def _dt(day: int) -> datetime:
+    return datetime(2026, 1, day, tzinfo=UTC)
+
+
+def _day(day: int) -> str:
+    return _dt(day).isoformat()
+
+
+def _ingest(client: TestClient, headers: dict[str, str], metric: str, days: list[int]) -> None:
+    # Value 1.00x is inside every metric's range.
+    readings = [{"metric": metric, "value": 1.0 + d / 1000, "recorded_at": _day(d)} for d in days]
+    res = client.post("/api/v1/readings", json={"readings": readings}, headers=headers)
+    assert res.status_code == 201
+
+
+def _days(client: TestClient, admin_headers: dict[str, str], **params: str | int) -> list[int]:
+    res = client.get("/api/v1/readings", params=params, headers=admin_headers)
+    assert res.status_code == 200
+    return [datetime.fromisoformat(r["recorded_at"]).day for r in res.json()]
+
+
+def test_batch_filter_returns_only_its_window(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+) -> None:
+    a_id, a_headers = make_device("vessel-a")
+    _, b_headers = make_device("vessel-b")
+    _ingest(client, a_headers, "temperature_c", [9, 10, 15, 20, 21])
+    _ingest(client, b_headers, "temperature_c", [15])
+    first = make_batch(a_id, _dt(10), _dt(20))
+    second = make_batch(a_id, _dt(20))  # open, starts where the first ends
+
+    # Start inclusive, end exclusive, other devices excluded.
+    assert _days(client, admin_headers, batch_id=first) == [15, 10]
+    # The reading on the shared boundary belongs to exactly one batch.
+    assert _days(client, admin_headers, batch_id=second) == [21, 20]
+
+    # An open batch runs "to now": a reading a few minutes ahead (device clock skew) stays out.
+    ahead = datetime.now(UTC) + timedelta(minutes=3)
+    res = client.post(
+        "/api/v1/readings",
+        json={
+            "readings": [{"metric": "temperature_c", "value": 20, "recorded_at": ahead.isoformat()}]
+        },
+        headers=a_headers,
+    )
+    assert res.status_code == 201
+    assert _days(client, admin_headers, batch_id=second) == [21, 20]
+
+
+def test_batch_filter_composes_with_other_params(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+) -> None:
+    a_id, a_headers = make_device("vessel-a")
+    b_id, _ = make_device("vessel-b")
+    _ingest(client, a_headers, "temperature_c", [11, 12, 15])
+    _ingest(client, a_headers, "specific_gravity", [13])
+    batch = make_batch(a_id, _dt(10), _dt(20))
+
+    assert _days(client, admin_headers, batch_id=batch) == [15, 13, 12, 11]
+    assert _days(client, admin_headers, batch_id=batch, metric="temperature_c") == [15, 12, 11]
+    assert _days(client, admin_headers, batch_id=batch, since=_day(12)) == [15, 13, 12]
+    assert _days(client, admin_headers, batch_id=batch, limit=1) == [15]
+    assert _days(client, admin_headers, batch_id=batch, device_id=a_id) == [15, 13, 12, 11]
+    assert _days(client, admin_headers, batch_id=batch, device_id=b_id) == []
+
+
+def test_unknown_batch_id_is_404(client: TestClient, admin_headers: dict[str, str]) -> None:
+    res = client.get("/api/v1/readings", params={"batch_id": 999}, headers=admin_headers)
+    assert res.status_code == 404

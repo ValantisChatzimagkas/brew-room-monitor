@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
 from app.config import get_settings
-from app.routers import devices, locations, readings
+from app.routers import batches, devices, locations, readings
 
 
 def _operation_id(route: APIRoute) -> str:
@@ -25,6 +25,7 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+app.include_router(batches.router, prefix="/api/v1")
 app.include_router(devices.router, prefix="/api/v1")
 app.include_router(locations.router, prefix="/api/v1")
 app.include_router(readings.router, prefix="/api/v1")

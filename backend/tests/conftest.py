@@ -1,5 +1,6 @@
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -79,9 +80,9 @@ def location_id(client: TestClient, admin_headers: dict[str, str]) -> int:
 
 def _register_device(
     client: TestClient, admin_headers: dict[str, str], body: dict[str, object]
-) -> dict[str, str]:
+) -> tuple[int, dict[str, str]]:
     res = client.post("/api/v1/devices", json=body, headers=admin_headers)
-    return {"Authorization": f"Bearer {res.json()['token']}"}
+    return int(res.json()["id"]), {"Authorization": f"Bearer {res.json()['token']}"}
 
 
 @pytest.fixture
@@ -92,9 +93,35 @@ def device_headers(
         client,
         admin_headers,
         {"name": "room-1", "kind": "ambient", "location_id": location_id},
-    )
+    )[1]
 
 
 @pytest.fixture
 def in_vessel_headers(client: TestClient, admin_headers: dict[str, str]) -> dict[str, str]:
-    return _register_device(client, admin_headers, {"name": "vessel-1", "kind": "in_vessel"})
+    return _register_device(client, admin_headers, {"name": "vessel-1", "kind": "in_vessel"})[1]
+
+
+@pytest.fixture
+def make_device(
+    client: TestClient, admin_headers: dict[str, str]
+) -> Callable[[str], tuple[int, dict[str, str]]]:
+    """Register a new in-vessel device; returns its id and its token headers."""
+    return lambda name: _register_device(client, admin_headers, {"name": name, "kind": "in_vessel"})
+
+
+@pytest.fixture
+def make_batch(client: TestClient, admin_headers: dict[str, str]) -> Callable[..., int]:
+    """Create a batch on a device over a window (open when `ended_at` is None); returns its id."""
+
+    def make(device_id: int, started_at: datetime, ended_at: datetime | None = None) -> int:
+        body: dict[str, object] = {
+            "name": "ipa",
+            "device_id": device_id,
+            "started_at": started_at.isoformat(),
+            "ended_at": ended_at.isoformat() if ended_at else None,
+        }
+        res = client.post("/api/v1/batches", json=body, headers=admin_headers)
+        assert res.status_code == 201
+        return int(res.json()["id"])
+
+    return make

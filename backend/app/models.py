@@ -10,6 +10,7 @@ from typing import NamedTuple, Self
 
 from pydantic import AwareDatetime, ConfigDict, model_validator
 from sqlalchemy import Column, DateTime, Index, String, func, text
+from sqlalchemy.dialects.postgresql import ExcludeConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -138,6 +139,63 @@ class DevicePublic(DeviceBase):
 
 class DeviceCreated(DevicePublic):
     token: str  # plaintext, returned exactly once at creation
+
+
+# --- Batch ----------------------------------------------------------------
+
+
+class BatchBase(SQLModel):
+    name: str = Field(min_length=1, max_length=64)  # a brew, e.g. "Summer IPA"
+
+
+class Batch(BatchBase, table=True):
+    # One brew per device at a time. Enforced by the DB so no writer can skip the check; an open
+    # batch runs to infinity. Needs the `btree_gist` extension (created in the migration).
+    __table_args__ = (
+        ExcludeConstraint(
+            ("device_id", "="),
+            (
+                text("tstzrange(started_at, coalesce(ended_at, 'infinity'::timestamptz), '[)')"),
+                "&&",
+            ),
+            name="ex_batch_device_no_overlap",
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    device_id: int = Field(foreign_key="device.id", ondelete="RESTRICT")
+    started_at: datetime = Field(default_factory=utcnow, sa_column=tz_column())
+    ended_at: datetime | None = Field(default=None, sa_column=tz_column(nullable=True))
+
+
+class BatchCreate(BatchBase):
+    model_config = ConfigDict(str_strip_whitespace=True)  # type: ignore[assignment]
+
+    device_id: int
+    started_at: AwareDatetime | None = None  # default: now. Past values backfill a brew.
+    ended_at: AwareDatetime | None = None  # omit for a running batch
+
+
+class BatchUpdate(SQLModel):
+    model_config = ConfigDict(str_strip_whitespace=True)  # type: ignore[assignment]
+
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    started_at: AwareDatetime | None = None
+    ended_at: AwareDatetime | None = None  # explicit null reopens the batch
+
+    @model_validator(mode="after")
+    def _required_not_null(self) -> Self:
+        for field in ("name", "started_at"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
+
+
+class BatchPublic(BatchBase):
+    id: int
+    device_id: int
+    started_at: datetime
+    ended_at: datetime | None
 
 
 # --- Reading --------------------------------------------------------------

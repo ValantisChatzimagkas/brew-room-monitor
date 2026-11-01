@@ -59,7 +59,8 @@ Sensors (ESP32 now, in-fermenter capsules later) push readings → FastAPI store
 ## Domain glossary
 - **Device**: one sensor node. `ambient` (room) or `in_vessel` (floats in the fermenter).
 - **Reading**: one `(device, metric, value, recorded_at)` sample.
-- **Batch** / **Yeast profile** (not built yet): a brew with a yeast strain and its temperature range; insights compare readings against it.
+- **Batch**: a brew on one device over a time window (`started_at`, `ended_at`; open while `ended_at` is null).
+- **Yeast profile** (not built yet): a yeast strain and its temperature range, attached to a batch; insights compare readings against it.
 
 ## Commits
 Conventional Commits (`feat:`, `fix:`, `refactor:`, `chore:`…), small and focused. Don't commit `.env*` files.
