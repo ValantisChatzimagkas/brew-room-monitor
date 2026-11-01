@@ -146,16 +146,24 @@ class FakeIssuer:
         self.key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         self.other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         self.kid = "key-1"
+        self.fail = False  # discovery and JWKS answer 500: a provider outage
+        self.discovery_hits = 0
+        self.jwks_hits = 0
         issuer = self
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:
                 if self.path == "/.well-known/openid-configuration":
+                    issuer.discovery_hits += 1
                     body: dict[str, Any] = {"issuer": issuer.url, "jwks_uri": issuer.url + "jwks"}
                 elif self.path == "/jwks":
+                    issuer.jwks_hits += 1
                     body = {"keys": [issuer.jwk()]}
                 else:
                     self.send_error(404)
+                    return
+                if issuer.fail:
+                    self.send_error(500)
                     return
                 payload = json.dumps(body).encode()
                 self.send_response(200)
@@ -177,6 +185,11 @@ class FakeIssuer:
     def jwk(self) -> dict[str, Any]:
         public = jwt.algorithms.RSAAlgorithm.to_jwk(self.key.public_key(), as_dict=True)
         return {**public, "kid": self.kid, "use": "sig", "alg": "RS256"}
+
+    def rotate(self) -> None:
+        """Publish a new signing key under a new kid (the old one is gone)."""
+        self.key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self.kid = "key-2"
 
     def sign(
         self,

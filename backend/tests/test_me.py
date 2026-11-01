@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives import serialization
 from fastapi.testclient import TestClient
 from sqlmodel import Session, func, select
 
+from app import oidc
 from app.config import Settings, get_settings
 from app.main import app
 from app.models import User
@@ -161,3 +162,58 @@ def test_user_routes_fail_closed_without_auth_config(
         environment="test", admin_token=ADMIN_TOKEN, auth_issuer=None, auth_audience=None
     )
     assert client.get(ME, headers=user_headers).status_code == 401
+
+
+def test_provider_outage_returns_503_without_leaking(
+    client: TestClient, issuer: FakeIssuer, user_headers: dict[str, str]
+) -> None:
+    issuer.fail = True
+    res = client.get(ME, headers=user_headers)
+    assert res.status_code == 503
+    assert res.json() == {"detail": "Sign-in provider unavailable"}
+    assert issuer.url not in res.text
+
+
+def test_cached_keys_survive_an_outage(
+    client: TestClient,
+    issuer: FakeIssuer,
+    user_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert client.get(ME, headers=user_headers).status_code == 200
+    hits = issuer.discovery_hits
+    monkeypatch.setattr(oidc, "JWKS_TTL_SECONDS", 0)  # keys are stale; the cooldown stays
+    issuer.fail = True
+
+    for _ in range(5):
+        assert client.get(ME, headers=user_headers).status_code == 200
+    assert issuer.discovery_hits - hits <= 1
+
+
+@pytest.mark.parametrize(("failing", "status"), [(False, 401), (True, 503)])
+def test_unknown_kid_does_not_hammer_the_issuer(
+    failing: bool, status: int, client: TestClient, issuer: FakeIssuer
+) -> None:
+    issuer.fail = failing
+    claims = {"iss": issuer.url, "aud": AUDIENCE, "sub": "auth0|alice", "exp": time.time() + 300}
+    for kid in ("nope-1", "nope-2"):
+        res = client.get(ME, headers={"Authorization": f"Bearer {issuer.sign(claims, kid=kid)}"})
+        assert res.status_code == status
+    assert issuer.discovery_hits == 1
+    assert issuer.jwks_hits == (0 if failing else 1)
+
+
+def test_rotated_key_is_picked_up(
+    client: TestClient,
+    issuer: FakeIssuer,
+    make_user_token: Callable[..., str],
+    user_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert client.get(ME, headers=user_headers).status_code == 200
+    monkeypatch.setattr(oidc, "JWKS_TTL_SECONDS", 0)
+    monkeypatch.setattr(oidc, "JWKS_MIN_REFETCH_SECONDS", 0)
+    issuer.rotate()
+
+    res = client.get(ME, headers={"Authorization": f"Bearer {make_user_token()}"})
+    assert res.status_code == 200

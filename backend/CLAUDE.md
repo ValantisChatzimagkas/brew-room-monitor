@@ -45,5 +45,5 @@
 ## Deploy targets
 Must keep working on both, so:
 - Docker: `Dockerfile` runs `alembic upgrade head` then `exec`s `fastapi run`, so the app is PID 1 and receives SIGTERM.
-- FastAPI Cloud: `fastapi deploy` from `backend/` uses `[tool.fastapi] entrypoint` in `pyproject.toml`. Point `DATABASE_URL` at a managed Postgres that allows the `btree_gist` extension (the batch migration creates it), set `ADMIN_TOKEN` + `ENVIRONMENT=production`, run migrations as a separate step against that DB.
+- FastAPI Cloud: `fastapi deploy` from `backend/` uses `[tool.fastapi] entrypoint` in `pyproject.toml`. Point `DATABASE_URL` at a managed Postgres that allows the `btree_gist` extension (the batch migration creates it), set `ADMIN_TOKEN` + `AUTH_ISSUER` + `AUTH_AUDIENCE` + `ENVIRONMENT=production` (the app needs outbound HTTPS to the issuer for its signing keys), run migrations as a separate step against that DB.
 - So: stateless app, no writes to local disk, no background threads that must survive restarts, everything configured by env.

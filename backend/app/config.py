@@ -28,6 +28,18 @@ class Settings(BaseSettings):
         return self.environment == "production"
 
     @model_validator(mode="after")
+    def _auth_config(self) -> Self:
+        # Messages never echo the values.
+        if bool(self.auth_issuer) != bool(self.auth_audience):
+            raise ValueError("AUTH_ISSUER and AUTH_AUDIENCE must be set together")
+        if self.is_production:
+            if not self.auth_issuer:
+                raise ValueError("AUTH_ISSUER and AUTH_AUDIENCE are required in production")
+            if not self.auth_issuer.startswith("https://"):
+                raise ValueError("AUTH_ISSUER must start with https:// in production")
+        return self
+
+    @model_validator(mode="after")
     def _strong_admin_token_in_production(self) -> Self:
         # Refuse to boot with the `.env.example` placeholder or a guessable token.
         if self.is_production and len(self.admin_token.get_secret_value()) < 32:
