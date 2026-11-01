@@ -176,6 +176,21 @@ class BatchCreate(BatchBase):
     ended_at: AwareDatetime | None = None  # omit for a running batch
 
 
+class BatchUpdate(SQLModel):
+    model_config = ConfigDict(str_strip_whitespace=True)  # type: ignore[assignment]
+
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    started_at: AwareDatetime | None = None
+    ended_at: AwareDatetime | None = None  # explicit null reopens the batch
+
+    @model_validator(mode="after")
+    def _required_not_null(self) -> Self:
+        for field in ("name", "started_at"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
+
+
 class BatchPublic(BatchBase):
     id: int
     device_id: int

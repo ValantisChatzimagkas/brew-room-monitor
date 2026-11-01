@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlmodel import Session, col, select
 
 from app.deps import AdminDep, SessionDep, save_or_conflict
-from app.models import Batch, BatchCreate, BatchPublic, Device, utcnow
+from app.models import Batch, BatchCreate, BatchPublic, BatchUpdate, Device, utcnow
 
 router = APIRouter(prefix="/batches", tags=["batches"], dependencies=[AdminDep])
 
@@ -26,6 +26,20 @@ def create_batch(payload: BatchCreate, session: SessionDep) -> BatchPublic:
     started_at = payload.started_at or utcnow()
     _check_window(started_at, payload.ended_at)
     batch = Batch.model_validate(payload, update={"started_at": started_at})
+    save_or_conflict(session, batch, _OVERLAP)
+    return BatchPublic.model_validate(batch)
+
+
+@router.patch("/{batch_id}")
+def update_batch(batch_id: int, payload: BatchUpdate, session: SessionDep) -> BatchPublic:
+    batch = session.get(Batch, batch_id)
+    if batch is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Batch not found")
+    changes = payload.model_dump(exclude_unset=True)
+    _check_window(
+        changes.get("started_at", batch.started_at), changes.get("ended_at", batch.ended_at)
+    )
+    batch.sqlmodel_update(changes)
     save_or_conflict(session, batch, _OVERLAP)
     return BatchPublic.model_validate(batch)
 

@@ -102,3 +102,80 @@ def test_overlap_conflicts(
     assert _create(client, admin_headers, device_a, open_start) == 201
     assert _create(client, admin_headers, device_a, open_start + timedelta(days=1)) == 409
     assert _create(client, admin_headers, device_b, open_start) == 201
+
+
+def _create_ok(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    device_id: int,
+    started_at: datetime,
+    ended_at: datetime | None = None,
+) -> int:
+    body: dict[str, object] = {"name": "ipa", "device_id": device_id}
+    body["started_at"] = started_at.isoformat()
+    if ended_at is not None:
+        body["ended_at"] = ended_at.isoformat()
+    res = client.post("/api/v1/batches", json=body, headers=admin_headers)
+    assert res.status_code == 201
+    return int(res.json()["id"])
+
+
+def test_end_batch_then_start_next(
+    client: TestClient, admin_headers: dict[str, str], make_device: MakeDevice
+) -> None:
+    device_id, _ = make_device("vessel-a")
+    batch_id = _create_ok(client, admin_headers, device_id, JAN_1)
+    assert _create(client, admin_headers, device_id, JAN_10) == 409  # first one is still open
+
+    res = client.patch(
+        f"/api/v1/batches/{batch_id}", json={"ended_at": JAN_10.isoformat()}, headers=admin_headers
+    )
+    assert res.status_code == 200
+    assert datetime.fromisoformat(res.json()["ended_at"]) == JAN_10
+    assert _create(client, admin_headers, device_id, JAN_10) == 201
+
+
+def test_end_rejects_bad_times(
+    client: TestClient, admin_headers: dict[str, str], make_device: MakeDevice
+) -> None:
+    device_id, _ = make_device("vessel-a")
+    batch_id = _create_ok(client, admin_headers, device_id, JAN_5)
+    future = datetime.now(UTC) + timedelta(hours=1)
+    for ended_at, expected in ((JAN_1, 422), (future, 422), (JAN_5, 200)):  # JAN_5 voids it
+        res = client.patch(
+            f"/api/v1/batches/{batch_id}",
+            json={"ended_at": ended_at.isoformat()},
+            headers=admin_headers,
+        )
+        assert res.status_code == expected, ended_at
+
+
+def test_update_overlap_conflicts(
+    client: TestClient, admin_headers: dict[str, str], make_device: MakeDevice
+) -> None:
+    device_id, _ = make_device("vessel-a")
+    first = _create_ok(client, admin_headers, device_id, JAN_1, JAN_5)
+    second = _create_ok(client, admin_headers, device_id, JAN_10, JAN_15)
+
+    # Each change would overlap a neighbour.
+    cases = [
+        (second, {"started_at": JAN_1.isoformat()}),  # extend back into the previous batch
+        (first, {"ended_at": JAN_15.isoformat()}),  # extend forward into the next batch
+        (first, {"ended_at": None}),  # reopen while a later batch exists
+    ]
+    for batch_id, changes in cases:
+        res = client.patch(f"/api/v1/batches/{batch_id}", json=changes, headers=admin_headers)
+        assert res.status_code == 409, changes
+
+
+def test_update_rejects_nulls_and_unknown_id(
+    client: TestClient, admin_headers: dict[str, str], make_device: MakeDevice
+) -> None:
+    device_id, _ = make_device("vessel-a")
+    batch_id = _create_ok(client, admin_headers, device_id, JAN_1)
+    for changes in ({"name": None}, {"name": ""}, {"started_at": None}):
+        res = client.patch(f"/api/v1/batches/{batch_id}", json=changes, headers=admin_headers)
+        assert res.status_code == 422, changes
+
+    res = client.patch("/api/v1/batches/999", json={"name": "x"}, headers=admin_headers)
+    assert res.status_code == 404
