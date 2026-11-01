@@ -39,6 +39,7 @@ Start reading here, by flow:
 - **Devices are revoked (`revoked_at`), never deleted**, because their readings cascade on device delete.
 - **Batched ingest** (bounds in `firmware/README.md`), because sending every few minutes saves device battery.
 - **Ingest is idempotent.** A device-stamped reading is stored once per `(device, metric, recorded_at)`; a resend is a no-op, so a device that lost a 201 can retry its buffer. Readings without `recorded_at` are exempt, because they share the receive time and would clash. A partial unique index on `Reading` enforces it (`backend/app/models.py`).
+- **A batch is a device plus a time window, not a stamp on readings.** Flashed devices can't learn about batches, buffered readings arrive late, and a batch can be created after its data exists, so a reading belongs to a batch when it comes from the batch's device with `recorded_at` in `[started_at, ended_at)`. A Postgres exclusion constraint (needs the `btree_gist` extension) stops one device having two overlapping batches, so the rule holds for any writer. Batches are never deleted: a zero-length batch voids a mistake, and the FK to `device` is `RESTRICT`.
 - **Index `(device_id, metric, recorded_at)`** serves per-device and per-metric history; a second, partial unique index on the same columns does the dedupe. The dashboard reads the newest reading per device and metric (`limit=1`), which the index serves.
 
 ## Runtime and deploy
