@@ -116,28 +116,7 @@ def _bad_authorization(
     return {"no header": {}, "device token": device_headers, **headers}
 
 
-BAD_CASES = [
-    "no header",
-    "expired",
-    "wrong issuer",
-    "wrong audience",
-    "other key, real kid",
-    "unknown kid",
-    "alg none",
-    "hs256 with public key",
-    "missing exp",
-    "missing sub",
-    "empty sub",
-    "256-char sub",
-    "admin token",
-    "device token",
-    "not a jwt",
-]
-
-
-@pytest.mark.parametrize("case", BAD_CASES)
 def test_rejects_bad_tokens(
-    case: str,
     client: TestClient,
     session: Session,
     issuer: FakeIssuer,
@@ -147,11 +126,10 @@ def test_rejects_bad_tokens(
     normal_401 = client.get("/api/v1/devices")
     assert normal_401.status_code == 401
 
-    headers = _bad_authorization(issuer, make_user_token, device_headers)[case]
-    res = client.get(ME, headers=headers)
-
-    assert res.status_code == 401
-    assert res.json() == normal_401.json()
+    for case, headers in _bad_authorization(issuer, make_user_token, device_headers).items():
+        res = client.get(ME, headers=headers)
+        assert res.status_code == 401, case
+        assert res.json() == normal_401.json(), case
     assert _count_users(session) == 0
 
 
