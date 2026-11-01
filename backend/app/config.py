@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://brew:brew@localhost:5432/brew"
     # Shared secret for the frontend server / admin calls. Devices use their own per-device tokens.
     admin_token: SecretStr
+    # User sign-in (docs/decisions/0001): the issuer must equal the token's `iss` exactly.
+    # Unset (or empty) means user routes return 401, never "skip verification".
+    auth_issuer: str | None = None
+    auth_audience: str | None = None
 
     @property
     def is_production(self) -> bool:

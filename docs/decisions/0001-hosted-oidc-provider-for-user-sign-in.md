@@ -31,7 +31,7 @@ Use Auth0 as the OIDC provider. The backend verifies RS256 access tokens against
 ## Consequences
 - A provider outage stops user sign-in and, once cached signing keys or sessions run out (a cold stateless instance must fetch the JWKS first), user API calls. Device ingest is never affected.
 - The free-tier cap and Auth0's behaviour when it is exceeded are unconfirmed; check before launch.
-- Local dev and tests need a way to mint tokens without a tenant: TCV-34 picks the method.
+- Tests mint tokens against a local fake issuer (`backend/CLAUDE.md`); local dev uses a dev tenant's test token.
 - Moving away means changing `AUTH_*` and the frontend SDK, re-importing users (an Auth0 password-hash export needs a support request) and remapping `User` rows keyed by `(iss, sub)`. Supabase Auth is the fallback.
 
 ## Supersedes

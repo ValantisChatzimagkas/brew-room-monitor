@@ -1,10 +1,17 @@
+import json
 import os
+import threading
+import time
 from collections.abc import Callable, Iterator
 from datetime import datetime
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
 
+import jwt
 import pytest
 from alembic.config import Config
+from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, make_url, text
 from sqlmodel import Session, SQLModel
@@ -19,14 +26,19 @@ _base_url = make_url(
 )
 TEST_DB_URL = _base_url.set(database=f"{_base_url.database}_test")
 ADMIN_TOKEN = "test-admin-token"
+AUDIENCE = "https://api.brew.test"
 
 os.environ.update(
     ENVIRONMENT="test",
     DATABASE_URL=TEST_DB_URL.render_as_string(hide_password=False),
     ADMIN_TOKEN=ADMIN_TOKEN,
 )
+# The Makefile exports the root .env into pytest: a developer's real tenant must not leak in.
+for _name in ("AUTH_ISSUER", "AUTH_AUDIENCE"):
+    os.environ.pop(_name, None)
 
-from app.db import engine, get_session  # noqa: E402  env must be set first
+from app.config import Settings, get_settings  # noqa: E402  env must be set first
+from app.db import engine, get_session  # noqa: E402
 from app.main import app  # noqa: E402
 
 
@@ -125,3 +137,95 @@ def make_batch(client: TestClient, admin_headers: dict[str, str]) -> Callable[..
         return int(res.json()["id"])
 
     return make
+
+
+class FakeIssuer:
+    """A real HTTP OIDC issuer on localhost: discovery document + JWKS of a throwaway RSA key."""
+
+    def __init__(self) -> None:
+        self.key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self.other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self.kid = "key-1"
+        issuer = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:
+                if self.path == "/.well-known/openid-configuration":
+                    body: dict[str, Any] = {"issuer": issuer.url, "jwks_uri": issuer.url + "jwks"}
+                elif self.path == "/jwks":
+                    body = {"keys": [issuer.jwk()]}
+                else:
+                    self.send_error(404)
+                    return
+                payload = json.dumps(body).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+
+            def log_message(self, format: str, *args: Any) -> None:
+                pass
+
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        # Trailing slash on purpose: Auth0's `iss` has one, so the exact-match and
+        # discovery-URL paths both run.
+        self.url = f"http://127.0.0.1:{self._server.server_port}/"
+        self._thread = threading.Thread(target=self._server.serve_forever)
+        self._thread.start()
+
+    def jwk(self) -> dict[str, Any]:
+        public = jwt.algorithms.RSAAlgorithm.to_jwk(self.key.public_key(), as_dict=True)
+        return {**public, "kid": self.kid, "use": "sig", "alg": "RS256"}
+
+    def sign(
+        self,
+        claims: dict[str, Any],
+        *,
+        key: rsa.RSAPrivateKey | None = None,
+        kid: str | None = None,
+        alg: str = "RS256",
+    ) -> str:
+        return jwt.encode(claims, key or self.key, algorithm=alg, headers={"kid": kid or self.kid})
+
+    def close(self) -> None:
+        self._server.shutdown()
+        self._server.server_close()
+        self._thread.join()
+
+
+@pytest.fixture
+def issuer() -> Iterator[FakeIssuer]:
+    fake = FakeIssuer()
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        environment="test",
+        admin_token=ADMIN_TOKEN,
+        auth_issuer=fake.url,
+        auth_audience=AUDIENCE,
+    )
+    yield fake
+    fake.close()
+
+
+@pytest.fixture
+def make_user_token(issuer: FakeIssuer) -> Callable[..., str]:
+    """A valid token for `sub`; `claims` override or add claims, a `None` value drops one."""
+
+    def make(sub: str = "auth0|alice", **claims: Any) -> str:
+        now = int(time.time())
+        base: dict[str, Any] = {
+            "iss": issuer.url,
+            "aud": AUDIENCE,
+            "sub": sub,
+            "iat": now,
+            "exp": now + 300,
+        }
+        merged = {**base, **claims}
+        return issuer.sign({k: v for k, v in merged.items() if v is not None})
+
+    return make
+
+
+@pytest.fixture
+def user_headers(make_user_token: Callable[..., str]) -> dict[str, str]:
+    return {"Authorization": f"Bearer {make_user_token()}"}

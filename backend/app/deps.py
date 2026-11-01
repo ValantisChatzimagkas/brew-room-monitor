@@ -3,12 +3,14 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, select
 
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.models import Device
+from app.models import Device, User, utcnow
+from app.oidc import InvalidToken, ProviderUnavailable, verify_user_token
 from app.security import hash_token
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -21,6 +23,9 @@ _UNAUTHORIZED = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
     detail="Invalid or missing token",
     headers={"WWW-Authenticate": "Bearer"},
+)
+_PROVIDER_UNAVAILABLE = HTTPException(
+    status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Sign-in provider unavailable"
 )
 
 
@@ -41,6 +46,30 @@ def current_device(creds: BearerDep, session: SessionDep) -> Device:
     return device
 
 
+def current_user(creds: BearerDep, session: SessionDep, settings: SettingsDep) -> User:
+    if creds is None:
+        raise _UNAUTHORIZED
+    try:
+        identity = verify_user_token(creds.credentials, settings)
+    except InvalidToken:
+        raise _UNAUTHORIZED from None
+    except ProviderUnavailable:
+        raise _PROVIDER_UNAVAILABLE from None
+    same_identity = (User.issuer == identity.issuer) & (User.subject == identity.subject)
+    user = session.exec(select(User).where(same_identity)).first()
+    if user is None:
+        # First request from this identity. ON CONFLICT lets concurrent first requests converge on
+        # one row; created_at is explicit because a Core insert skips `default_factory`.
+        session.exec(
+            insert(User)
+            .values(issuer=identity.issuer, subject=identity.subject, created_at=utcnow())
+            .on_conflict_do_nothing(constraint="uq_app_user_issuer_subject")
+        )
+        session.commit()
+        user = session.exec(select(User).where(same_identity)).one()
+    return user
+
+
 def save_or_conflict(session: Session, row: SQLModel, conflict: str) -> None:
     """Commit `row`; a unique-constraint clash becomes 409 with `conflict` as the message."""
     session.add(row)
@@ -54,3 +83,4 @@ def save_or_conflict(session: Session, row: SQLModel, conflict: str) -> None:
 
 AdminDep = Depends(require_admin)
 DeviceDep = Annotated[Device, Depends(current_device)]
+UserDep = Annotated[User, Depends(current_user)]
