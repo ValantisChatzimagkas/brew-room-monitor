@@ -688,6 +688,7 @@ export interface operations {
         parameters: {
             query?: {
                 device_id?: number | null;
+                batch_id?: number | null;
                 metric?: components["schemas"]["Metric"] | null;
                 since?: string | null;
                 limit?: number;
