@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { getApi, type Device, type Reading } from "@/lib/api/client";
 import { formatValue, METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
 import { groupByRoom } from "@/lib/rooms";
-import { formatAge, isStale } from "@/lib/time";
+import { deviceStatus } from "@/lib/status";
+import { formatAge } from "@/lib/time";
 
 export default function Home() {
   return (
@@ -67,7 +68,7 @@ async function DeviceList() {
 }
 
 function DeviceCard({ device, latest, now }: { device: Device; latest: Reading[]; now: Date }) {
-  const stale = isStale(latest, now);
+  const status = deviceStatus(device, latest, now);
   return (
     <li>
       <Card>
@@ -78,7 +79,12 @@ function DeviceCard({ device, latest, now }: { device: Device; latest: Reading[]
                 {device.name}
               </Link>
             </h3>
-            {stale && <span className="text-sm font-normal text-stale">Stale</span>}
+            {status === "stale" && <span className="text-sm font-normal text-stale">Stale</span>}
+            {device.revoked_at && (
+              <span className="text-sm font-normal text-destructive">
+                <ReadingTime iso={device.revoked_at}>Revoked {formatAge(new Date(device.revoked_at), now)}</ReadingTime>
+              </span>
+            )}
           </CardTitle>
           <CardDescription>
             {device.kind}
@@ -93,7 +99,7 @@ function DeviceCard({ device, latest, now }: { device: Device; latest: Reading[]
                 <div key={r.metric} className="contents">
                   <dt className="text-muted-foreground">{METRIC_INFO[r.metric].label}</dt>
                   <dd className="tabular-nums">{formatValue(r.metric, r.value)}</dd>
-                  <dd className={stale ? "text-stale" : "text-muted-foreground"}>
+                  <dd className={status === "stale" ? "text-stale" : "text-muted-foreground"}>
                     <ReadingTime iso={r.recorded_at}>{formatAge(new Date(r.recorded_at), now)}</ReadingTime>
                   </dd>
                 </div>
