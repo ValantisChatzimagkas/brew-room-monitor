@@ -2,7 +2,7 @@
 # Dev with hot reload: `docker compose up db` + run backend/frontend natively (see README).
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: brew
       POSTGRES_PASSWORD: brew
