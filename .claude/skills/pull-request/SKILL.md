@@ -18,7 +18,7 @@ The body follows `.github/pull_request_template.md`; read it, don't work from me
 Conventional Commit, the same type the Linear label maps to (see `linear-issue`): `feat(frontend): …`, `fix(backend): …`. Imperative, ≤72 chars, no issue ID (it goes in the body).
 
 ## Body rules
-- `Fixes TCV-<n>` when the PR finishes the issue; `Part of TCV-<n>` when it doesn't.
+- `Fixes #<n>` when the PR finishes the issue; `Part of #<n>` when it doesn't.
 - "What changed" says what a reviewer can check in the diff, not the commit log. Name reused code, new dependencies (including ones `shadcn add` installed) and anything skipped.
 - "Verified" is what you ran or looked at yourself, beyond CI. If you didn't check something, say so; never imply it.
 - Link, don't copy: name files, endpoints and docs.
