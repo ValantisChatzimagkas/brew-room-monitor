@@ -1,8 +1,20 @@
 # Brew Room Monitor
 
-Ambient conditions of the brewing room(s) and yeast insights, fed by ESP32 / in-vessel sensors.
+[![CI](https://github.com/ValantisChatzimagkas/brew-room-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/ValantisChatzimagkas/brew-room-monitor/actions/workflows/ci.yml)
 
-**Stack:** FastAPI · SQLModel · Alembic · Postgres · Next.js · Tailwind · shadcn/ui · Docker
+A service for monitoring brewing rooms. Sensor devices such as ESP32 boards push ambient and in-vessel readings to an HTTP API, and a web dashboard shows each room's current conditions and history. It exists to make fermentation conditions visible without hand-logging them, with a device contract simple enough for battery-powered hardware that buffers and retries.
+
+## Features
+
+- Token-authenticated reading ingest with per-metric validation, idempotent retries and offline-buffer backfill ([device contract](firmware/README.md)).
+- Device registration, revocation and token rotation; device tokens are stored hashed.
+- Locations and fermentation batches, with a per-device no-overlap constraint and readings filterable by batch.
+- Dashboard grouped by room with reading freshness, plus a device page with per-metric history charts.
+- JWT verification against a hosted OIDC provider for user routes (`/api/v1/me`); frontend login is not built yet.
+
+## Stack
+
+FastAPI, SQLModel, Alembic and Postgres on the backend; Next.js, Tailwind and shadcn/ui on the frontend; Docker Compose; GitHub Actions CI. The repo does not include device firmware, only the API contract it must follow.
 
 ## Quick start
 
@@ -17,10 +29,14 @@ Run the pieces in separate terminals with `make db`, `make dev-backend` and `mak
 
 `make down` stops the compose stack, `make logs` tails it, `make db-reset` wipes the dev database (after you type `yes`).
 
-Register a sensor and send data: see [`firmware/README.md`](firmware/README.md).
+Register a device and send data: see [`firmware/README.md`](firmware/README.md).
 
 ## Before pushing
 
 `make check` (the backend and frontend CI jobs). `make smoke` builds the images and boots the full stack (its own CI job; needs Docker and ports 3000/8000/5432 free). `make audit` checks dependencies for known CVEs (its own CI workflow, also weekly).
 
 How it fits together and why: [`ARCHITECTURE.md`](ARCHITECTURE.md). Working rules for humans and AI agents: [`CLAUDE.md`](CLAUDE.md).
+
+## License
+
+[MIT](LICENSE)
