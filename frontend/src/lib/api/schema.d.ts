@@ -46,7 +46,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Get Batch */
+        get: operations["get_batch"];
         put?: never;
         post?: never;
         delete?: never;
@@ -196,6 +197,24 @@ export interface components {
             /** Ended At */
             ended_at?: string | null;
         };
+        /** BatchDetail */
+        BatchDetail: {
+            /** Name */
+            name: string;
+            /** Id */
+            id: number;
+            /** Device Id */
+            device_id: number;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Ended At */
+            ended_at: string | null;
+            /** Metrics */
+            metrics: components["schemas"]["MetricSummary"][];
+        };
         /** BatchPublic */
         BatchPublic: {
             /** Name */
@@ -307,6 +326,25 @@ export interface components {
          * @enum {string}
          */
         Metric: "temperature_c" | "humidity_pct" | "pressure_hpa" | "specific_gravity" | "battery_v";
+        /** MetricSummary */
+        MetricSummary: {
+            metric: components["schemas"]["Metric"];
+            /** Count */
+            count: number;
+            /** Min Value */
+            min_value: number;
+            /** Max Value */
+            max_value: number;
+            /** Avg Value */
+            avg_value: number;
+            /** Latest Value */
+            latest_value: number;
+            /**
+             * Latest Recorded At
+             * Format: date-time
+             */
+            latest_recorded_at: string;
+        };
         /** ReadingBatch */
         ReadingBatch: {
             /** Readings */
@@ -433,6 +471,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BatchPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchDetail"];
                 };
             };
             /** @description Validation Error */

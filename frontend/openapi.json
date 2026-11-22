@@ -129,6 +129,51 @@
       }
     },
     "/api/v1/batches/{batch_id}": {
+      "get": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "Get Batch",
+        "operationId": "get_batch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "tags": [
           "batches"
@@ -769,6 +814,58 @@
         ],
         "title": "BatchCreate"
       },
+      "BatchDetail": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "device_id": {
+            "type": "integer",
+            "title": "Device Id"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/MetricSummary"
+            },
+            "type": "array",
+            "title": "Metrics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "id",
+          "device_id",
+          "started_at",
+          "ended_at",
+          "metrics"
+        ],
+        "title": "BatchDetail"
+      },
       "BatchPublic": {
         "properties": {
           "name": {
@@ -1131,6 +1228,49 @@
         ],
         "title": "Metric",
         "description": "Unit is part of the name, so values are never ambiguous."
+      },
+      "MetricSummary": {
+        "properties": {
+          "metric": {
+            "$ref": "#/components/schemas/Metric"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "min_value": {
+            "type": "number",
+            "title": "Min Value"
+          },
+          "max_value": {
+            "type": "number",
+            "title": "Max Value"
+          },
+          "avg_value": {
+            "type": "number",
+            "title": "Avg Value"
+          },
+          "latest_value": {
+            "type": "number",
+            "title": "Latest Value"
+          },
+          "latest_recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Latest Recorded At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metric",
+          "count",
+          "min_value",
+          "max_value",
+          "avg_value",
+          "latest_value",
+          "latest_recorded_at"
+        ],
+        "title": "MetricSummary"
       },
       "ReadingBatch": {
         "properties": {

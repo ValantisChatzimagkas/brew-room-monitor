@@ -8,7 +8,7 @@ A service for monitoring brewing rooms. Sensor devices such as ESP32 boards push
 
 - Token-authenticated reading ingest with per-metric validation, idempotent retries and offline-buffer backfill ([device contract](firmware/README.md)).
 - Device registration, revocation and token rotation; device tokens are stored hashed.
-- Locations and fermentation batches, with a per-device no-overlap constraint and readings filterable by batch.
+- Locations and fermentation batches, with a per-device no-overlap constraint and readings filterable by batch, and per-batch condition summaries.
 - Dashboard grouped by room with reading freshness, plus a device page with per-metric history charts.
 - JWT verification against a hosted OIDC provider for user routes (`/api/v1/me`); frontend login is not built yet.
 

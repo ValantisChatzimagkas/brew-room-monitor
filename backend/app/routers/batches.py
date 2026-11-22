@@ -2,10 +2,24 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
+from sqlalchemy import func
+from sqlalchemy import select as select_columns  # sqlmodel's `select` types at most 4 columns
+from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlmodel import Session, col, select
 
 from app.deps import AdminDep, SessionDep, get_batch_or_404, save_or_conflict
-from app.models import Batch, BatchCreate, BatchPublic, BatchUpdate, Device, utcnow
+from app.models import (
+    Batch,
+    BatchCreate,
+    BatchDetail,
+    BatchPublic,
+    BatchUpdate,
+    Device,
+    MetricSummary,
+    Reading,
+    utcnow,
+)
+from app.services.batches import batch_readings_filter
 
 router = APIRouter(prefix="/batches", tags=["batches"], dependencies=[AdminDep])
 
@@ -20,6 +34,15 @@ def list_batches(
 ) -> list[BatchPublic]:
     query = select(Batch).order_by(col(Batch.started_at).desc(), col(Batch.id).desc()).limit(limit)
     return [BatchPublic.model_validate(b) for b in session.exec(query).all()]
+
+
+@router.get("/{batch_id}")
+def get_batch(batch_id: int, session: SessionDep) -> BatchDetail:
+    batch = get_batch_or_404(session, batch_id)
+    return BatchDetail(
+        **BatchPublic.model_validate(batch).model_dump(),
+        metrics=_summarize_metrics(session, batch),
+    )
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -57,6 +80,39 @@ def _check_window(started_at: datetime, ended_at: datetime | None) -> None:
         )
     if ended_at is not None and ended_at < started_at:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "ended_at is before started_at")
+
+
+def _summarize_metrics(session: Session, batch: Batch) -> list[MetricSummary]:
+    value, recorded_at = col(Reading.value), col(Reading.recorded_at)
+    # Latest = newest recorded_at; the higher id (later insert) breaks a tie between clockless
+    # readings, which share the server's receive time.
+    latest = func.array_agg(aggregate_order_by(value, recorded_at.desc(), col(Reading.id).desc()))
+    query = (
+        select_columns(
+            col(Reading.metric),
+            func.count(),
+            func.min(value),
+            func.max(value),
+            func.avg(value),
+            latest[1],
+            func.max(recorded_at),
+        )
+        .where(*batch_readings_filter(batch))
+        .group_by(col(Reading.metric))
+        .order_by(col(Reading.metric))
+    )
+    return [
+        MetricSummary(
+            metric=metric,
+            count=count,
+            min_value=low,
+            max_value=high,
+            avg_value=mean,
+            latest_value=latest_value,
+            latest_recorded_at=latest_at,
+        )
+        for metric, count, low, high, mean, latest_value, latest_at in session.execute(query).all()
+    ]
 
 
 def _ensure_device_exists(session: Session, device_id: int) -> None:
