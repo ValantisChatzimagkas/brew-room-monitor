@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlmodel import Session, col, select
 
-from app.deps import AdminDep, SessionDep, save_or_conflict
+from app.deps import AdminDep, SessionDep, get_batch_or_404, save_or_conflict
 from app.models import Batch, BatchCreate, BatchPublic, BatchUpdate, Device, utcnow
 
 router = APIRouter(prefix="/batches", tags=["batches"], dependencies=[AdminDep])
@@ -34,9 +34,7 @@ def create_batch(payload: BatchCreate, session: SessionDep) -> BatchPublic:
 
 @router.patch("/{batch_id}")
 def update_batch(batch_id: int, payload: BatchUpdate, session: SessionDep) -> BatchPublic:
-    batch = session.get(Batch, batch_id)
-    if batch is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Batch not found")
+    batch = get_batch_or_404(session, batch_id)
     changes = payload.model_dump(exclude_unset=True)
     _check_window(
         changes.get("started_at", batch.started_at), changes.get("ended_at", batch.ended_at)

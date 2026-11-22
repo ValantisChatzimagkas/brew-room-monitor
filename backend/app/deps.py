@@ -9,7 +9,7 @@ from sqlmodel import Session, SQLModel, select
 
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.models import Device, User, utcnow
+from app.models import Batch, Device, User, utcnow
 from app.oidc import InvalidToken, ProviderUnavailable, verify_user_token
 from app.security import hash_token
 
@@ -79,6 +79,13 @@ def save_or_conflict(session: Session, row: SQLModel, conflict: str) -> None:
         session.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, conflict) from None
     session.refresh(row)
+
+
+def get_batch_or_404(session: Session, batch_id: int) -> Batch:
+    batch = session.get(Batch, batch_id)
+    if batch is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Batch not found")
+    return batch
 
 
 AdminDep = Depends(require_admin)
