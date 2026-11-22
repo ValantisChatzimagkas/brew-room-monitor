@@ -11,6 +11,7 @@ MakeBatch = Callable[..., int]
 JAN_1 = datetime(2026, 1, 1, tzinfo=UTC)
 JAN_5 = datetime(2026, 1, 5, tzinfo=UTC)
 JAN_10 = datetime(2026, 1, 10, tzinfo=UTC)
+JAN_12 = datetime(2026, 1, 12, tzinfo=UTC)
 JAN_15 = datetime(2026, 1, 15, tzinfo=UTC)
 JAN_20 = datetime(2026, 1, 20, tzinfo=UTC)
 JAN_21 = datetime(2026, 1, 21, tzinfo=UTC)
@@ -183,10 +184,6 @@ def test_update_rejects_nulls_and_unknown_id(
     assert res.status_code == 404
 
 
-def _day(d: int) -> datetime:
-    return datetime(2026, 1, d, tzinfo=UTC)
-
-
 def _ingest(
     client: TestClient,
     headers: dict[str, str],
@@ -219,17 +216,17 @@ def test_summary_covers_only_the_batch_window(
         client,
         a_headers,
         [
-            ("temperature_c", 5, _day(9)),  # before the window
-            ("temperature_c", 18, _day(10)),  # start is inclusive
-            ("temperature_c", 20, _day(12)),
-            ("temperature_c", 22, _day(15)),
+            ("temperature_c", 5, JAN_5),  # before the window
+            ("temperature_c", 18, JAN_10),  # start is inclusive
+            ("temperature_c", 20, JAN_12),
+            ("temperature_c", 22, JAN_15),
             ("temperature_c", 99, JAN_20),  # shared boundary: belongs to the second batch
             ("temperature_c", 4, JAN_21),
-            ("specific_gravity", 1.050, _day(12)),
-            ("specific_gravity", 1.020, _day(15)),
+            ("specific_gravity", 1.050, JAN_12),
+            ("specific_gravity", 1.020, JAN_15),
         ],
     )
-    _ingest(client, b_headers, [("temperature_c", 50, _day(15))])  # another device
+    _ingest(client, b_headers, [("temperature_c", 50, JAN_15)])  # another device
     first = make_batch(a_id, JAN_10, JAN_20)
     second = make_batch(a_id, JAN_20)
 
@@ -251,7 +248,7 @@ def test_summary_covers_only_the_batch_window(
     sg, temp = one["metrics"]
     assert sg["avg_value"] == pytest.approx(1.035)
     assert temp["avg_value"] == pytest.approx(20)
-    assert datetime.fromisoformat(temp["latest_recorded_at"]) == _day(15)
+    assert datetime.fromisoformat(temp["latest_recorded_at"]) == JAN_15
 
     (only,) = _get(client, admin_headers, second)["metrics"]
     assert (only["metric"], only["count"], only["min_value"], only["max_value"]) == (
@@ -265,30 +262,46 @@ def test_summary_covers_only_the_batch_window(
     assert datetime.fromisoformat(only["latest_recorded_at"]) == JAN_21
 
 
-def test_summary_of_empty_and_single_reading_batches(
+@pytest.mark.parametrize(
+    ("readings", "started_at", "ended_at"),
+    [
+        pytest.param([], JAN_10, JAN_15, id="no-readings"),
+        pytest.param(
+            [("temperature_c", 18, JAN_5), ("temperature_c", 19, JAN_15)],
+            JAN_10,
+            JAN_15,
+            id="before-start-and-at-end",
+        ),
+        pytest.param([("temperature_c", 18, JAN_10)], JAN_10, JAN_10, id="zero-length"),
+    ],
+)
+def test_summary_of_a_batch_without_readings_is_empty(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+    readings: list[tuple[str, float, datetime | None]],
+    started_at: datetime,
+    ended_at: datetime,
+) -> None:
+    device_id, headers = make_device("vessel-a")
+    if readings:
+        _ingest(client, headers, readings)
+    batch_id = make_batch(device_id, started_at, ended_at)
+    assert _get(client, admin_headers, batch_id)["metrics"] == []
+
+
+def test_summary_of_a_single_reading(
     client: TestClient,
     admin_headers: dict[str, str],
     make_device: MakeDevice,
     make_batch: MakeBatch,
 ) -> None:
-    empty_id, _ = make_device("vessel-empty")
-    assert _get(client, admin_headers, make_batch(empty_id, JAN_10, JAN_15))["metrics"] == []
+    device_id, headers = make_device("vessel-a")
+    _ingest(client, headers, [("specific_gravity", 1.04, JAN_10)])
+    batch_id = make_batch(device_id, JAN_5, JAN_15)
 
-    outside_id, outside_headers = make_device("vessel-outside")
-    _ingest(
-        client,
-        outside_headers,
-        [("temperature_c", 18, JAN_5), ("temperature_c", 19, JAN_15)],  # before start, at end
-    )
-    assert _get(client, admin_headers, make_batch(outside_id, JAN_10, JAN_15))["metrics"] == []
-
-    zero_id, zero_headers = make_device("vessel-zero")
-    _ingest(client, zero_headers, [("temperature_c", 18, JAN_10)])
-    assert _get(client, admin_headers, make_batch(zero_id, JAN_10, JAN_10))["metrics"] == []
-
-    one_id, one_headers = make_device("vessel-one")
-    _ingest(client, one_headers, [("specific_gravity", 1.04, JAN_10)])
-    (summary,) = _get(client, admin_headers, make_batch(one_id, JAN_5, JAN_15))["metrics"]
+    (summary,) = _get(client, admin_headers, batch_id)["metrics"]
     assert summary["count"] == 1
     assert (
         summary["min_value"]
