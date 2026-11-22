@@ -5,9 +5,10 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col, select
 
-from app.deps import AdminDep, DeviceDep, SessionDep
+from app.deps import DeviceDep, ScopeDep, SessionDep, owned
 from app.models import (
     Batch,
+    Device,
     IngestResult,
     Metric,
     Reading,
@@ -60,21 +61,37 @@ def ingest_readings(batch: ReadingBatch, device: DeviceDep, session: SessionDep)
     return IngestResult(accepted=len(batch.readings))
 
 
-@router.get("", dependencies=[AdminDep])
+@router.get("")
 def list_readings(
     session: SessionDep,
+    scope: ScopeDep,
     device_id: int | None = None,
     batch_id: int | None = None,
     metric: Metric | None = None,
     since: datetime | None = None,
     limit: Annotated[int, Query(ge=1, le=5000)] = 500,
 ) -> list[ReadingPublic]:
-    query = select(Reading).order_by(col(Reading.recorded_at).desc()).limit(limit)
+    # A reading belongs to its device's owner; a foreign device id simply matches no rows.
+    query = owned(
+        select(Reading).join(Device, col(Device.id) == col(Reading.device_id)),
+        col(Device.owner_id),
+        scope,
+    )
+    query = query.order_by(col(Reading.recorded_at).desc()).limit(limit)
     if device_id is not None:
         query = query.where(Reading.device_id == device_id)
     if batch_id is not None:
         # Membership is derived, not stamped: the batch's device within [started_at, ended_at).
-        batch = session.get(Batch, batch_id)
+        # Joined to its device so another owner's batch is a 404 like an unknown id.
+        batch = session.exec(
+            owned(
+                select(Batch)
+                .join(Device, col(Device.id) == col(Batch.device_id))
+                .where(Batch.id == batch_id),
+                col(Device.owner_id),
+                scope,
+            )
+        ).first()
         if batch is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Batch not found")
         query = query.where(

@@ -5,7 +5,9 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Mapped
 from sqlmodel import Session, SQLModel, select
+from sqlmodel.sql.expression import SelectOfScalar
 
 from app.config import Settings, get_settings
 from app.db import get_session
@@ -29,9 +31,13 @@ _PROVIDER_UNAVAILABLE = HTTPException(
 )
 
 
-def require_admin(creds: BearerDep, settings: SettingsDep) -> None:
+def _is_admin(creds: HTTPAuthorizationCredentials | None, settings: Settings) -> bool:
     expected = settings.admin_token.get_secret_value()
-    if creds is None or not secrets.compare_digest(creds.credentials, expected):
+    return creds is not None and secrets.compare_digest(creds.credentials, expected)
+
+
+def require_admin(creds: BearerDep, settings: SettingsDep) -> None:
+    if not _is_admin(creds, settings):
         raise _UNAUTHORIZED
 
 
@@ -70,6 +76,23 @@ def current_user(creds: BearerDep, session: SessionDep, settings: SettingsDep) -
     return user
 
 
+def owner_scope(creds: BearerDep, session: SessionDep, settings: SettingsDep) -> User | None:
+    """The caller's user, or None for the admin token (sees every owner's rows).
+
+    Admin is checked first so the dashboard never triggers a JWKS fetch.
+    """
+    if _is_admin(creds, settings):
+        return None
+    return current_user(creds, session, settings)
+
+
+def owned[T](
+    query: SelectOfScalar[T], owner_column: Mapped[int], scope: User | None
+) -> SelectOfScalar[T]:
+    """Limit `query` to the rows `scope` owns; no limit for the admin (`scope` is None)."""
+    return query if scope is None else query.where(owner_column == scope.id)
+
+
 def save_or_conflict(session: Session, row: SQLModel, conflict: str) -> None:
     """Commit `row`; a unique-constraint clash becomes 409 with `conflict` as the message."""
     session.add(row)
@@ -84,3 +107,4 @@ def save_or_conflict(session: Session, row: SQLModel, conflict: str) -> None:
 AdminDep = Depends(require_admin)
 DeviceDep = Annotated[Device, Depends(current_device)]
 UserDep = Annotated[User, Depends(current_user)]
+ScopeDep = Annotated[User | None, Depends(owner_scope)]

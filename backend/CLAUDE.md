@@ -9,8 +9,8 @@
 ## FastAPI
 - Endpoints are plain `def` (sync SQLModel session runs in the threadpool). Use `async def` only if everything awaited inside is async; never call blocking I/O inside `async def`.
 - Declare the response type as the return annotation (`-> list[ReadingPublic]`). Never return a table model that holds secrets.
-- Dependencies via `Annotated` aliases from `app/deps.py` (`SessionDep`, `DeviceDep`, `UserDep`, `AdminDep`). Don't create sessions by hand in routes.
-- Auth is explicit per router/route: admin routes use `AdminDep`, device ingest uses `DeviceDep`, user routes use `UserDep`. A new router must pick one; there are no public data routes.
+- Dependencies via `Annotated` aliases from `app/deps.py` (`SessionDep`, `DeviceDep`, `UserDep`, `ScopeDep`, `AdminDep`). Don't create sessions by hand in routes.
+- Auth is explicit per router/route: admin routes use `AdminDep`, device ingest uses `DeviceDep`, user routes use `UserDep`. A new router must pick one; there are no public data routes. A route that returns or changes an owner's rows takes `UserDep` (writes) or `ScopeDep` (lists: the user, or `None` for the admin token) and filters with `owned`; a foreign row is a 404/422, never a 403. To get a user token for `curl`, see `firmware/README.md` ("Getting a user token").
 - Errors: raise `HTTPException` with the correct status (401 auth, 404 missing, 409 conflict, 422 invalid). Don't return error dicts with 200.
 - Validate at the edge with Pydantic (`Field` bounds, `AwareDatetime`, `max_length` on lists/strings). Every list input has a max size.
 
@@ -37,8 +37,8 @@
 - Real Postgres (`brew_test` DB, created automatically; needs `make db`). Never SQLite, never a mocked session. `_database` in `tests/conftest.py` builds its schema with `alembic upgrade head` once per session (tables are emptied between tests), so a migration is tested the way production runs it.
 - Any warning fails the run. Ignore one on purpose only via `filterwarnings` in `pyproject.toml`, with a reason comment beside it.
 - Go through the HTTP API with the `client`, `admin_headers`, `device_headers` fixtures in `tests/conftest.py`. Add a fixture there only when a second test needs it.
-- One file per router (`tests/test_<router>.py`), plus `tests/test_auth.py` as the cross-cutting exception. Plain unit tests only for pure functions in `app/services/` and startup validation in `app/config.py` (`tests/test_config.py`).
-- `tests/test_auth.py` walks every registered route (missing, unknown and wrong-kind token → 401), so don't write per-route auth tests. A new device-token route goes in `DEVICE_ROUTES`, a new user-JWT route in `USER_ROUTES`, a new public route in `EXEMPT_PATHS` (needs a reason).
+- One file per router (`tests/test_<router>.py`), plus `tests/test_auth.py` and `tests/test_migrations.py` (a data migration, run against the real test DB) as the cross-cutting exceptions. Plain unit tests only for pure functions in `app/services/` and startup validation in `app/config.py` (`tests/test_config.py`).
+- `tests/test_auth.py` walks every registered route (missing, unknown and wrong-kind token → 401), so don't write per-route auth tests. A new device-token route goes in `DEVICE_ROUTES`, a new user-JWT route in `USER_ROUTES`, a route that takes a user JWT or the admin token in `USER_OR_ADMIN_ROUTES`, a new public route in `EXEMPT_PATHS` (needs a reason); anything else is admin-only.
 - User-JWT tests sign tokens with the local fake issuer fixture (`issuer`, `make_user_token`) in `tests/conftest.py`; never mock `app/oidc.py` (patching its `JWKS_*` tuning constants is fine).
 - See `test_rejects_bad_payloads` in `tests/test_readings.py` for the table style: many invalid inputs, one test.
 

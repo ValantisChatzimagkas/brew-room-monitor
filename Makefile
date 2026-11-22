@@ -90,7 +90,9 @@ db-reset:      ## wipe the dev database volume (asks first)
 # Own compose project, so a run never touches the dev stack's volume. Host ports are shared with
 # the dev stack: stop it first (a clash fails fast with "port is already allocated").
 # The frontend's `/` returns 200 even when its backend call fails, so the page must show the
-# seeded device. The seed response holds a device token: never print it.
+# seeded device. Registering one needs a user JWT and compose has no issuer, so the seed goes
+# through psql: a user plus a device they own. The device token is generated here and never
+# printed; its hash must match `hash_token` in backend/app/security.py.
 smoke:         ## build the images, boot the compose stack, assert it works end to end (needs ports 3000/8000/5432 free)
 	@set -e; \
 	export COMPOSE_PROJECT_NAME=brew-smoke ADMIN_TOKEN=$${ADMIN_TOKEN:-smoke-token}; \
@@ -98,9 +100,11 @@ smoke:         ## build the images, boot the compose stack, assert it works end 
 	trap 'exit 130' INT; trap 'exit 143' TERM; \
 	docker compose up --build --wait; \
 	curl -fsS http://localhost:8000/health >/dev/null; \
-	curl -fsS -X POST http://localhost:8000/api/v1/devices \
-	  -H "Authorization: Bearer $$ADMIN_TOKEN" -H "Content-Type: application/json" \
-	  -d '{"name":"smoke-device","kind":"in_vessel"}' >/dev/null; \
+	hash=$$(python3 -c "import hashlib, secrets; print(hashlib.sha256(secrets.token_urlsafe(32).encode()).hexdigest())"); \
+	docker compose exec -T db psql -U brew -d brew -v ON_ERROR_STOP=1 -q -v hash=$$hash <<< " \
+	  WITH u AS (INSERT INTO app_user (issuer, subject, created_at) VALUES ('smoke', 'smoke', now()) RETURNING id) \
+	  INSERT INTO device (name, kind, token_hash, owner_id, created_at) \
+	  SELECT 'smoke-device', 'in_vessel', :'hash', id, now() FROM u;" >/dev/null; \
 	page=$$(curl -fsS http://localhost:3000/); \
 	case "$$page" in *smoke-device*) ;; *) echo "smoke: frontend page is missing smoke-device"; exit 1;; esac; \
 	echo "smoke: ok"

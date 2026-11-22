@@ -9,7 +9,20 @@ from app.main import app
 # Public on purpose. `/docs/oauth2-redirect` is registered by FastAPI together with `/docs`;
 # we use bearer auth, so it is never used.
 EXEMPT_PATHS = {"/health", "/openapi.json", "/docs", "/docs/oauth2-redirect"}
-USER_ROUTES = {("GET", "/api/v1/me")}
+USER_ROUTES = {
+    ("GET", "/api/v1/me"),
+    ("POST", "/api/v1/locations"),
+    ("POST", "/api/v1/devices"),
+    ("PATCH", "/api/v1/devices/{device_id}"),
+    ("POST", "/api/v1/devices/{device_id}/revoke"),
+    ("POST", "/api/v1/devices/{device_id}/rotate"),
+}
+# Owner-scoped lists: a user sees their own rows, the admin token everything.
+USER_OR_ADMIN_ROUTES = {
+    ("GET", "/api/v1/devices"),
+    ("GET", "/api/v1/locations"),
+    ("GET", "/api/v1/readings"),
+}
 # Every route not listed here or in DEVICE_ROUTES is admin-only.
 DEVICE_ROUTES = {("POST", "/api/v1/readings")}
 
@@ -27,10 +40,13 @@ def _protected_routes() -> list[tuple[str, str]]:
     return sorted(routes)
 
 
-def _kind(method: str, path: str) -> str:
-    if (method, path) in USER_ROUTES:
-        return "user"
-    return "device" if (method, path) in DEVICE_ROUTES else "admin"
+def _allowed_kinds(method: str, path: str) -> set[str]:
+    route = (method, path)
+    if route in USER_ROUTES:
+        return {"user"}
+    if route in USER_OR_ADMIN_ROUTES:
+        return {"user", "admin"}
+    return {"device"} if route in DEVICE_ROUTES else {"admin"}
 
 
 def test_every_route_requires_its_token(
@@ -44,8 +60,8 @@ def test_every_route_requires_its_token(
     assert routes, "no routes found; the route walk is broken"
 
     for method, path in routes:
-        kind = _kind(method, path)
-        wrong_kinds = {k: h for k, h in own_headers.items() if k != kind}
+        allowed = _allowed_kinds(method, path)
+        wrong_kinds = {k: h for k, h in own_headers.items() if k not in allowed}
         url = re.sub(r"\{[^}]+\}", "1", path)
         # An empty body is on purpose: auth must run before body validation.
         for label, headers in (
