@@ -57,7 +57,7 @@ Sensors (ESP32 now, in-fermenter capsules later) push readings → FastAPI store
 - `skills/shadcn` is copied from `shadcn/ui` (via `skills add`) and patched to use the pinned CLI and the official registry only. If you update it, re-apply those edits.
 
 ## Domain glossary
-- **Device**: one sensor node. `ambient` (room) or `in_vessel` (floats in the fermenter).
+- **Device**: one sensor node, owned by one User. `ambient` (room) or `in_vessel` (floats in the fermenter).
 - **Reading**: one `(device, metric, value, recorded_at)` sample.
 - **Batch**: a brew on one device over a time window (`started_at`, `ended_at`; open while `ended_at` is null).
 - **User**: a person, identified by the provider's `(issuer, subject)`; row in `app_user`, created on first verified request.

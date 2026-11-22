@@ -31,10 +31,10 @@ Use Auth0 as the OIDC provider. The backend verifies RS256 access tokens against
 ## Consequences
 - A provider outage stops user sign-in and, once cached signing keys or sessions run out (a cold stateless instance must fetch the JWKS first), user API calls. Device ingest is never affected.
 - The free-tier cap and Auth0's behaviour when it is exceeded are unconfirmed; check before launch.
-- Tests mint tokens against a local fake issuer (`backend/CLAUDE.md`); local dev uses a dev tenant's test token.
+- Tests mint tokens against a local fake issuer (`backend/CLAUDE.md`); local dev gets a token from a dev tenant with the Device Authorization flow (`firmware/README.md`), not the API's Test tab: that token identifies the application, so rows registered with it would belong to a different identity than the person who later signs in.
 - Moving away means changing `AUTH_*` and the frontend SDK, re-importing users (an Auth0 password-hash export needs a support request) and remapping `User` rows keyed by `(iss, sub)`. Supabase Auth is the fallback.
 
 ## Supersedes
-Nothing yet. These stay true until the named tickets ship, and those tickets update them:
+Nothing yet for these; they stay true until the named tickets ship, and those tickets update them:
 - JWT verification and frontend login: `ARCHITECTURE.md` ("The browser never calls the backend", "Two token kinds" say there is no user auth), the auth guardrails in root `CLAUDE.md` and `frontend/CLAUDE.md`. `frontend/CLAUDE.md` also says `client.ts` is the only file that reads `process.env`; the Auth0 SDK reads its own env vars, so the frontend login work must amend that rule or load the config through `client.ts`.
-- Owner scoping: the registration flow in the `ARCHITECTURE.md` diagram and its "registered through the admin API directly" line, and the `curl` with `$ADMIN_TOKEN` in `firmware/README.md`.
+- Batch scoping: batches stay admin-only until they are scoped through their device's owner; the admin token is retired after that.

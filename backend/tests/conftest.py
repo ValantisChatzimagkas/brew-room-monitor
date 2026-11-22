@@ -85,40 +85,40 @@ def admin_headers() -> dict[str, str]:
 
 
 @pytest.fixture
-def location_id(client: TestClient, admin_headers: dict[str, str]) -> int:
-    res = client.post("/api/v1/locations", json={"name": "garage"}, headers=admin_headers)
+def location_id(client: TestClient, user_headers: dict[str, str]) -> int:
+    res = client.post("/api/v1/locations", json={"name": "garage"}, headers=user_headers)
     return int(res.json()["id"])
 
 
 def _register_device(
-    client: TestClient, admin_headers: dict[str, str], body: dict[str, object]
+    client: TestClient, user_headers: dict[str, str], body: dict[str, object]
 ) -> tuple[int, dict[str, str]]:
-    res = client.post("/api/v1/devices", json=body, headers=admin_headers)
+    res = client.post("/api/v1/devices", json=body, headers=user_headers)
     return int(res.json()["id"]), {"Authorization": f"Bearer {res.json()['token']}"}
 
 
 @pytest.fixture
 def device_headers(
-    client: TestClient, admin_headers: dict[str, str], location_id: int
+    client: TestClient, user_headers: dict[str, str], location_id: int
 ) -> dict[str, str]:
     return _register_device(
         client,
-        admin_headers,
+        user_headers,
         {"name": "room-1", "kind": "ambient", "location_id": location_id},
     )[1]
 
 
 @pytest.fixture
-def in_vessel_headers(client: TestClient, admin_headers: dict[str, str]) -> dict[str, str]:
-    return _register_device(client, admin_headers, {"name": "vessel-1", "kind": "in_vessel"})[1]
+def in_vessel_headers(client: TestClient, user_headers: dict[str, str]) -> dict[str, str]:
+    return _register_device(client, user_headers, {"name": "vessel-1", "kind": "in_vessel"})[1]
 
 
 @pytest.fixture
 def make_device(
-    client: TestClient, admin_headers: dict[str, str]
+    client: TestClient, user_headers: dict[str, str]
 ) -> Callable[[str], tuple[int, dict[str, str]]]:
-    """Register a new in-vessel device; returns its id and its token headers."""
-    return lambda name: _register_device(client, admin_headers, {"name": name, "kind": "in_vessel"})
+    """Register a new in-vessel device for alice; returns its id and its token headers."""
+    return lambda name: _register_device(client, user_headers, {"name": name, "kind": "in_vessel"})
 
 
 @pytest.fixture
@@ -242,3 +242,8 @@ def make_user_token(issuer: FakeIssuer) -> Callable[..., str]:
 @pytest.fixture
 def user_headers(make_user_token: Callable[..., str]) -> dict[str, str]:
     return {"Authorization": f"Bearer {make_user_token()}"}
+
+
+@pytest.fixture
+def other_user_headers(make_user_token: Callable[..., str]) -> dict[str, str]:
+    return {"Authorization": f"Bearer {make_user_token('auth0|bob')}"}

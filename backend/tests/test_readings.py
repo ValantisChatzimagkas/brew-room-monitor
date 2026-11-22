@@ -82,12 +82,13 @@ def test_same_reading_from_two_devices_is_stored_twice(
     client: TestClient,
     device_headers: dict[str, str],
     admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     location_id: int,
 ) -> None:
     res = client.post(
         "/api/v1/devices",
         json={"name": "room-2", "kind": "ambient", "location_id": location_id},
-        headers=admin_headers,
+        headers=user_headers,
     )
     other_headers = {"Authorization": f"Bearer {res.json()['token']}"}
     batch = {
@@ -336,3 +337,52 @@ def test_batch_filter_composes_with_other_params(
 def test_unknown_batch_id_is_404(client: TestClient, admin_headers: dict[str, str]) -> None:
     res = client.get("/api/v1/readings", params={"batch_id": 999}, headers=admin_headers)
     assert res.status_code == 404
+
+
+def test_user_sees_only_readings_of_their_devices(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
+    other_user_headers: dict[str, str],
+    make_device: MakeDevice,
+) -> None:
+    alice_id, alice_token = make_device("alice-live")
+    revoked_id, revoked_token = make_device("alice-revoked")
+    bob = client.post(
+        "/api/v1/devices", json={"name": "bob", "kind": "in_vessel"}, headers=other_user_headers
+    ).json()
+    bob_id, bob_token = bob["id"], {"Authorization": f"Bearer {bob['token']}"}
+    for token, days in [(alice_token, [1]), (revoked_token, [2]), (bob_token, [3])]:
+        _ingest(client, token, "temperature_c", days)
+    client.post(f"/api/v1/devices/{revoked_id}/revoke", headers=user_headers)
+
+    # A revoked device's readings stay with its owner: the scope joins on the device, not its token.
+    assert _days(client, user_headers) == [2, 1]
+    assert _days(client, other_user_headers) == [3]
+    assert _days(client, admin_headers) == [3, 2, 1]
+
+    # Another owner's device id is indistinguishable from an unknown one.
+    assert _days(client, user_headers, device_id=bob_id) == []
+    assert _days(client, user_headers, device_id=999) == []
+    assert _days(client, user_headers, device_id=alice_id) == [1]
+
+
+def test_foreign_batch_id_is_404(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
+    other_user_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+) -> None:
+    device_id, token = make_device("alice-vessel")
+    _ingest(client, token, "temperature_c", [15])
+    batch = make_batch(device_id, _dt(10))
+
+    foreign = client.get("/api/v1/readings", params={"batch_id": batch}, headers=other_user_headers)
+    missing = client.get("/api/v1/readings", params={"batch_id": 999}, headers=other_user_headers)
+    assert foreign.status_code == 404
+    assert (foreign.status_code, foreign.json()) == (missing.status_code, missing.json())
+
+    assert _days(client, user_headers, batch_id=batch) == [15]
+    assert _days(client, admin_headers, batch_id=batch) == [15]

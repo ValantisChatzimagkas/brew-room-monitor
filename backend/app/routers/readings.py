@@ -5,8 +5,9 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col, select
 
-from app.deps import AdminDep, DeviceDep, SessionDep, get_batch_or_404
+from app.deps import DeviceDep, ScopeDep, SessionDep, get_batch_or_404, owned
 from app.models import (
+    Device,
     IngestResult,
     Metric,
     Reading,
@@ -60,20 +61,27 @@ def ingest_readings(batch: ReadingBatch, device: DeviceDep, session: SessionDep)
     return IngestResult(accepted=len(batch.readings))
 
 
-@router.get("", dependencies=[AdminDep])
+@router.get("")
 def list_readings(
     session: SessionDep,
+    scope: ScopeDep,
     device_id: int | None = None,
     batch_id: int | None = None,
     metric: Metric | None = None,
     since: datetime | None = None,
     limit: Annotated[int, Query(ge=1, le=5000)] = 500,
 ) -> list[ReadingPublic]:
-    query = select(Reading).order_by(col(Reading.recorded_at).desc()).limit(limit)
+    # A reading belongs to its device's owner; a foreign device id simply matches no rows.
+    query = owned(
+        select(Reading).join(Device, col(Device.id) == col(Reading.device_id)),
+        col(Device.owner_id),
+        scope,
+    )
+    query = query.order_by(col(Reading.recorded_at).desc()).limit(limit)
     if device_id is not None:
         query = query.where(Reading.device_id == device_id)
     if batch_id is not None:
-        query = query.where(*batch_readings_filter(get_batch_or_404(session, batch_id)))
+        query = query.where(*batch_readings_filter(get_batch_or_404(session, batch_id, scope)))
     if metric is not None:
         query = query.where(Reading.metric == metric)
     if since is not None:
