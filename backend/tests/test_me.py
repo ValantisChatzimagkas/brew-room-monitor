@@ -125,12 +125,13 @@ def test_rejects_bad_tokens(
 ) -> None:
     normal_401 = client.get("/api/v1/devices")
     assert normal_401.status_code == 401
+    users_before = _count_users(session)  # the device fixture's owner
 
     for case, headers in _bad_authorization(issuer, make_user_token, device_headers).items():
         res = client.get(ME, headers=headers)
         assert res.status_code == 401, case
         assert res.json() == normal_401.json(), case
-    assert _count_users(session) == 0
+    assert _count_users(session) == users_before
 
 
 def test_user_routes_fail_closed_without_auth_config(

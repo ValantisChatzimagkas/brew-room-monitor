@@ -4,21 +4,48 @@ This file is the contract the backend promises to keep.
 
 ## 1. Register a device (once, from your laptop)
 
-An `ambient` device needs the room it measures. Create the location once (`GET /api/v1/locations` lists existing ones), then register the device with its `id`:
+Registering needs a user token (`$USER_TOKEN`, see "Getting a user token"): the location and the device belong to the user who creates them, and only that user sees or changes them. The admin token is rejected with 401.
+
+An `ambient` device needs the room it measures. Create the location once (`GET /api/v1/locations` lists yours), then register the device with its `id`:
 
 ```sh
 curl -X POST http://<server>:8000/api/v1/locations \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $USER_TOKEN" -H "Content-Type: application/json" \
   -d '{"name": "garage"}'
 
 curl -X POST http://<server>:8000/api/v1/devices \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $USER_TOKEN" -H "Content-Type: application/json" \
   -d '{"name": "esp32-room-1", "kind": "ambient", "location_id": 1}'
 ```
 
 `in_vessel` devices may omit `location_id`. Rename or move a device later with `PATCH /api/v1/devices/{id}`. Cut a lost device off with `POST /api/v1/devices/{id}/revoke`; its readings stay. Re-key a lost or reflashed device with `POST /api/v1/devices/{id}/rotate`: the new token is shown once, the old one stops working, and a revoked device is re-enabled. Then reflash.
 
 Response contains `token`. It is shown **once**; flash it into the device config (not into git).
+
+### Getting a user token
+
+Use the Auth0 [Device Authorization flow](https://auth0.com/docs/get-started/authentication-and-authorization-flow/device-authorization-flow) (check that page if a step below stops working). It gives you a token for your own login, so the devices you register are yours when you later sign in to the frontend. `<tenant>` is the host of the backend's `AUTH_ISSUER`.
+
+1. In the Auth0 dashboard, enable the **Device Code** grant on your application (Application → Settings → Advanced → Grant Types). It is off by default and the request below fails with `unauthorized_client` without it.
+2. Ask for a code. `scope` can be `openid`; `audience` is the backend's `AUTH_AUDIENCE`:
+
+   ```sh
+   curl -X POST https://<tenant>/oauth/device/code \
+     -d client_id=<client id> -d scope=openid -d audience=<AUTH_AUDIENCE>
+   ```
+
+   The response has `verification_uri_complete`, `device_code` and `interval`. Open the URI in a browser and approve.
+3. Poll every `interval` seconds until it returns an `access_token` (`authorization_pending` and `slow_down` mean wait):
+
+   ```sh
+   curl -X POST https://<tenant>/oauth/token \
+     -d grant_type=urn:ietf:params:oauth:grant-type:device_code \
+     -d device_code=<device_code> -d client_id=<client id>
+   ```
+
+4. `export USER_TOKEN=<access_token>`. It expires; repeat the steps for a new one. `GET /api/v1/me` with it should return your user id.
+
+Never use the API's **Test** tab token: it identifies the application, not a person, so what you register with it belongs to nobody who can sign in.
 
 ## 2. Send readings
 

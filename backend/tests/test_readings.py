@@ -82,12 +82,13 @@ def test_same_reading_from_two_devices_is_stored_twice(
     client: TestClient,
     device_headers: dict[str, str],
     admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     location_id: int,
 ) -> None:
     res = client.post(
         "/api/v1/devices",
         json={"name": "room-2", "kind": "ambient", "location_id": location_id},
-        headers=admin_headers,
+        headers=user_headers,
     )
     other_headers = {"Authorization": f"Bearer {res.json()['token']}"}
     batch = {

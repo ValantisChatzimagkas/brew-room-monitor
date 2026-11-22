@@ -77,10 +77,14 @@ class LocationBase(SQLModel):
 
 
 class Location(LocationBase, table=True):
-    # "Garage" and "garage" are the same room.
-    __table_args__ = (Index("uq_location_name_lower", func.lower(text("name")), unique=True),)
+    # "Garage" and "garage" are the same room, but two owners may each have one.
+    __table_args__ = (
+        Index("uq_location_owner_name_lower", "owner_id", func.lower(text("name")), unique=True),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
+    # Not on LocationBase: the owner is the caller, never part of a payload or a response.
+    owner_id: int = Field(foreign_key="app_user.id", ondelete="RESTRICT")
 
 
 class LocationCreate(LocationBase):
@@ -95,14 +99,17 @@ class LocationPublic(LocationBase):
 
 
 class DeviceBase(SQLModel):
-    name: str = Field(min_length=1, max_length=64, unique=True)
+    name: str = Field(min_length=1, max_length=64)
     kind: DeviceKind = Field(sa_type=String(32))  # str, not PG enum: new values need no migration
     # Nullable in the DB so pre-location ambient rows stay valid; the API requires it on create.
     location_id: int | None = Field(default=None, foreign_key="location.id", ondelete="RESTRICT")
 
 
 class Device(DeviceBase, table=True):
+    __table_args__ = (UniqueConstraint("owner_id", "name", name="uq_device_owner_name"),)
+
     id: int | None = Field(default=None, primary_key=True)
+    owner_id: int = Field(foreign_key="app_user.id", ondelete="RESTRICT")
     token_hash: str = Field(max_length=64, unique=True)
     created_at: datetime = Field(default_factory=utcnow, sa_column=tz_column())
     revoked_at: datetime | None = Field(default=None, sa_column=tz_column(nullable=True))
