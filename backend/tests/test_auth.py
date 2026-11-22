@@ -18,7 +18,11 @@ USER_ROUTES = {
     ("POST", "/api/v1/devices/{device_id}/rotate"),
 }
 # Owner-scoped lists: a user sees their own rows, the admin token everything.
-USER_OR_ADMIN_ROUTES = {("GET", "/api/v1/devices"), ("GET", "/api/v1/locations")}
+USER_OR_ADMIN_ROUTES = {
+    ("GET", "/api/v1/devices"),
+    ("GET", "/api/v1/locations"),
+    ("GET", "/api/v1/readings"),
+}
 # Every route not listed here or in DEVICE_ROUTES is admin-only.
 DEVICE_ROUTES = {("POST", "/api/v1/readings")}
 
