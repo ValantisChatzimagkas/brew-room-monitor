@@ -1,6 +1,6 @@
 # Device ↔ API contract
 
-Firmware lives here (one folder per device type, e.g. `esp32-ambient/`). This file is the contract the backend promises to keep.
+This file is the contract the backend promises to keep.
 
 ## 1. Register a device (once, from your laptop)
 

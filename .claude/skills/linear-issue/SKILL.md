@@ -6,7 +6,7 @@ description: Create or edit a Linear issue for this repo using the project templ
 # Linear issue
 
 Every issue goes to the Linear project **Ambient Data Brewing Monitor**
-(https://linear.app/tcv-coding-space/project/ambient-data-brewing-monitor-2806fdd23b39). Look up its team and the label IDs through the Linear MCP; don't guess them.
+(configure the workspace in your Linear MCP). Look up its team and the label IDs through the Linear MCP; don't guess them.
 
 ## Steps
 1. Search the project for an open issue covering the same thing. If one exists, update it or ask; don't create a duplicate.
