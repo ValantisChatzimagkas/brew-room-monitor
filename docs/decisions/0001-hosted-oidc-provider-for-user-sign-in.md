@@ -35,6 +35,6 @@ Use Auth0 as the OIDC provider. The backend verifies RS256 access tokens against
 - Moving away means changing `AUTH_*` and the frontend SDK, re-importing users (an Auth0 password-hash export needs a support request) and remapping `User` rows keyed by `(iss, sub)`. Supabase Auth is the fallback.
 
 ## Supersedes
-Nothing yet. These stay true until the named tickets ship, and those tickets update them:
+Nothing yet for these; they stay true until the named tickets ship, and those tickets update them:
 - JWT verification and frontend login: `ARCHITECTURE.md` ("The browser never calls the backend", "Two token kinds" say there is no user auth), the auth guardrails in root `CLAUDE.md` and `frontend/CLAUDE.md`. `frontend/CLAUDE.md` also says `client.ts` is the only file that reads `process.env`; the Auth0 SDK reads its own env vars, so the frontend login work must amend that rule or load the config through `client.ts`.
-- Owner scoping: done for the registration flow (diagram, "registered with a user token" line, `curl` with `$USER_TOKEN`); batches stay admin-only until scoped through their device's owner.
+- Batch scoping: batches stay admin-only until they are scoped through their device's owner; the admin token is retired after that.

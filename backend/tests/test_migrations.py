@@ -91,7 +91,12 @@ def test_backfill_aborts_without_exactly_one_user(
     with engine.connect() as conn:
         assert conn.scalar(text("SELECT version_num FROM alembic_version")) != OWNER_SCOPE
         assert conn.scalar(text("SELECT count(*) FROM device")) == 1
-        columns = conn.scalars(
-            text("SELECT column_name FROM information_schema.columns WHERE table_name = 'device'")
+        assert conn.scalar(text("SELECT count(*) FROM location")) == 1
+        assert conn.scalar(text("SELECT count(*) FROM reading")) == 1
+        owner_columns = conn.scalars(
+            text(
+                "SELECT table_name FROM information_schema.columns "
+                "WHERE column_name = 'owner_id' AND table_name IN ('location', 'device')"
+            )
         ).all()
-    assert "owner_id" not in columns
+    assert owner_columns == []
