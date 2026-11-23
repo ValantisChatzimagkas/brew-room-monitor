@@ -6,12 +6,12 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped
-from sqlmodel import Session, SQLModel, select
+from sqlmodel import Session, SQLModel, col, select
 from sqlmodel.sql.expression import SelectOfScalar
 
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.models import Device, User, utcnow
+from app.models import Batch, Device, User, utcnow
 from app.oidc import InvalidToken, ProviderUnavailable, verify_user_token
 from app.security import hash_token
 
@@ -102,6 +102,22 @@ def save_or_conflict(session: Session, row: SQLModel, conflict: str) -> None:
         session.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, conflict) from None
     session.refresh(row)
+
+
+def get_batch_or_404(session: Session, batch_id: int, scope: User | None = None) -> Batch:
+    """The batch, or 404. Joined to its device so a foreign owner's batch is a 404 too."""
+    batch = session.exec(
+        owned(
+            select(Batch)
+            .join(Device, col(Device.id) == col(Batch.device_id))
+            .where(Batch.id == batch_id),
+            col(Device.owner_id),
+            scope,
+        )
+    ).first()
+    if batch is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Batch not found")
+    return batch
 
 
 AdminDep = Depends(require_admin)

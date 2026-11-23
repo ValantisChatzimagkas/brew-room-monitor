@@ -1,6 +1,8 @@
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 MakeDevice = Callable[[str], tuple[int, dict[str, str]]]
@@ -9,7 +11,10 @@ MakeBatch = Callable[..., int]
 JAN_1 = datetime(2026, 1, 1, tzinfo=UTC)
 JAN_5 = datetime(2026, 1, 5, tzinfo=UTC)
 JAN_10 = datetime(2026, 1, 10, tzinfo=UTC)
+JAN_12 = datetime(2026, 1, 12, tzinfo=UTC)
 JAN_15 = datetime(2026, 1, 15, tzinfo=UTC)
+JAN_20 = datetime(2026, 1, 20, tzinfo=UTC)
+JAN_21 = datetime(2026, 1, 21, tzinfo=UTC)
 
 
 def _create(
@@ -177,3 +182,158 @@ def test_update_rejects_nulls_and_unknown_id(
 
     res = client.patch("/api/v1/batches/999", json={"name": "x"}, headers=admin_headers)
     assert res.status_code == 404
+
+
+def _ingest(
+    client: TestClient,
+    headers: dict[str, str],
+    readings: list[tuple[str, float, datetime | None]],
+) -> None:
+    body = [
+        {"metric": m, "value": v, **({"recorded_at": at.isoformat()} if at else {})}
+        for m, v, at in readings
+    ]
+    res = client.post("/api/v1/readings", json={"readings": body}, headers=headers)
+    assert res.status_code == 201
+
+
+def _get(client: TestClient, admin_headers: dict[str, str], batch_id: int) -> dict[str, Any]:
+    res = client.get(f"/api/v1/batches/{batch_id}", headers=admin_headers)
+    assert res.status_code == 200
+    body: dict[str, Any] = res.json()
+    return body
+
+
+def test_summary_covers_only_the_batch_window(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+) -> None:
+    a_id, a_headers = make_device("vessel-a")
+    _, b_headers = make_device("vessel-b")
+    _ingest(
+        client,
+        a_headers,
+        [
+            ("temperature_c", 5, JAN_5),  # before the window
+            ("temperature_c", 18, JAN_10),  # start is inclusive
+            ("temperature_c", 20, JAN_12),
+            ("temperature_c", 22, JAN_15),
+            ("temperature_c", 99, JAN_20),  # shared boundary: belongs to the second batch
+            ("temperature_c", 4, JAN_21),
+            ("specific_gravity", 1.050, JAN_12),
+            ("specific_gravity", 1.020, JAN_15),
+        ],
+    )
+    _ingest(client, b_headers, [("temperature_c", 50, JAN_15)])  # another device
+    first = make_batch(a_id, JAN_10, JAN_20)
+    second = make_batch(a_id, JAN_20)
+
+    one = _get(client, admin_headers, first)
+    assert {k: one[k] for k in ("id", "name", "device_id", "ended_at")} == {
+        "id": first,
+        "name": "ipa",
+        "device_id": a_id,
+        "ended_at": JAN_20.isoformat().replace("+00:00", "Z"),
+    }
+    assert datetime.fromisoformat(str(one["started_at"])) == JAN_10
+    assert [
+        (m["metric"], m["count"], m["min_value"], m["max_value"], m["latest_value"])
+        for m in one["metrics"]
+    ] == [
+        ("specific_gravity", 2, 1.02, 1.05, 1.02),
+        ("temperature_c", 3, 18, 22, 22),
+    ]
+    sg, temp = one["metrics"]
+    assert sg["avg_value"] == pytest.approx(1.035)
+    assert temp["avg_value"] == pytest.approx(20)
+    assert datetime.fromisoformat(temp["latest_recorded_at"]) == JAN_15
+
+    (only,) = _get(client, admin_headers, second)["metrics"]
+    assert (only["metric"], only["count"], only["min_value"], only["max_value"]) == (
+        "temperature_c",
+        2,
+        4,
+        99,
+    )
+    assert only["avg_value"] == pytest.approx(51.5)
+    assert only["latest_value"] == 4
+    assert datetime.fromisoformat(only["latest_recorded_at"]) == JAN_21
+
+
+@pytest.mark.parametrize(
+    ("readings", "started_at", "ended_at"),
+    [
+        pytest.param([], JAN_10, JAN_15, id="no-readings"),
+        pytest.param(
+            [("temperature_c", 18, JAN_5), ("temperature_c", 19, JAN_15)],
+            JAN_10,
+            JAN_15,
+            id="before-start-and-at-end",
+        ),
+        pytest.param([("temperature_c", 18, JAN_10)], JAN_10, JAN_10, id="zero-length"),
+    ],
+)
+def test_summary_of_a_batch_without_readings_is_empty(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+    readings: list[tuple[str, float, datetime | None]],
+    started_at: datetime,
+    ended_at: datetime,
+) -> None:
+    device_id, headers = make_device("vessel-a")
+    if readings:
+        _ingest(client, headers, readings)
+    batch_id = make_batch(device_id, started_at, ended_at)
+    assert _get(client, admin_headers, batch_id)["metrics"] == []
+
+
+def test_summary_of_a_single_reading(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+) -> None:
+    device_id, headers = make_device("vessel-a")
+    _ingest(client, headers, [("specific_gravity", 1.04, JAN_10)])
+    batch_id = make_batch(device_id, JAN_5, JAN_15)
+
+    (summary,) = _get(client, admin_headers, batch_id)["metrics"]
+    assert summary["count"] == 1
+    assert (
+        summary["min_value"]
+        == summary["max_value"]
+        == summary["avg_value"]
+        == summary["latest_value"]
+        == 1.04
+    )
+    assert datetime.fromisoformat(summary["latest_recorded_at"]) == JAN_10
+
+
+def test_open_batch_summary_runs_to_now(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+) -> None:
+    device_id, headers = make_device("vessel-a")
+    batch_id = make_batch(device_id, JAN_1)
+    ahead = datetime.now(UTC) + timedelta(minutes=3)  # device clock skew, still accepted
+    # Clockless readings share one server-stamped recorded_at: the later insert is "latest".
+    _ingest(
+        client,
+        headers,
+        [("temperature_c", 10, None), ("temperature_c", 20, None), ("temperature_c", 99, ahead)],
+    )
+
+    (summary,) = _get(client, admin_headers, batch_id)["metrics"]
+    assert summary["count"] == 2
+    assert summary["latest_value"] == 20
+    assert summary["max_value"] == 20  # the reading ahead of now is excluded, as in list_readings
+
+
+def test_get_unknown_batch_is_404(client: TestClient, admin_headers: dict[str, str]) -> None:
+    assert client.get("/api/v1/batches/999", headers=admin_headers).status_code == 404

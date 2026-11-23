@@ -5,9 +5,8 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col, select
 
-from app.deps import DeviceDep, ScopeDep, SessionDep, owned
+from app.deps import DeviceDep, ScopeDep, SessionDep, get_batch_or_404, owned
 from app.models import (
-    Batch,
     Device,
     IngestResult,
     Metric,
@@ -17,6 +16,7 @@ from app.models import (
     metric_spec,
     utcnow,
 )
+from app.services.batches import batch_readings_filter
 
 router = APIRouter(prefix="/readings", tags=["readings"])
 
@@ -81,24 +81,7 @@ def list_readings(
     if device_id is not None:
         query = query.where(Reading.device_id == device_id)
     if batch_id is not None:
-        # Membership is derived, not stamped: the batch's device within [started_at, ended_at).
-        # Joined to its device so another owner's batch is a 404 like an unknown id.
-        batch = session.exec(
-            owned(
-                select(Batch)
-                .join(Device, col(Device.id) == col(Batch.device_id))
-                .where(Batch.id == batch_id),
-                col(Device.owner_id),
-                scope,
-            )
-        ).first()
-        if batch is None:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Batch not found")
-        query = query.where(
-            Reading.device_id == batch.device_id,
-            col(Reading.recorded_at) >= batch.started_at,
-            col(Reading.recorded_at) < (batch.ended_at or utcnow()),
-        )
+        query = query.where(*batch_readings_filter(get_batch_or_404(session, batch_id, scope)))
     if metric is not None:
         query = query.where(Reading.metric == metric)
     if since is not None:

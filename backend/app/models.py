@@ -205,6 +205,20 @@ class BatchPublic(BatchBase):
     ended_at: datetime | None
 
 
+class MetricSummary(SQLModel):
+    metric: Metric
+    count: int
+    min_value: float
+    max_value: float
+    avg_value: float
+    latest_value: float
+    latest_recorded_at: datetime
+
+
+class BatchDetail(BatchPublic):
+    metrics: list[MetricSummary]  # one per metric with a reading in the window, by metric name
+
+
 # --- User -----------------------------------------------------------------
 
 
