@@ -7,7 +7,7 @@ from sqlalchemy import select as select_columns  # sqlmodel's `select` types at 
 from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlmodel import Session, col, select
 
-from app.deps import AdminDep, SessionDep, get_batch_or_404, save_or_conflict
+from app.deps import ScopeDep, SessionDep, UserDep, get_batch_or_404, owned, save_or_conflict
 from app.models import (
     Batch,
     BatchCreate,
@@ -17,11 +17,12 @@ from app.models import (
     Device,
     MetricSummary,
     Reading,
+    User,
     utcnow,
 )
 from app.services.batches import batch_readings_filter
 
-router = APIRouter(prefix="/batches", tags=["batches"], dependencies=[AdminDep])
+router = APIRouter(prefix="/batches", tags=["batches"])
 
 _OVERLAP = "Batch overlaps another batch on this device"
 # Far below any brew, and far above what Postgres timestamptz rejects with a 500.
@@ -30,15 +31,23 @@ _EARLIEST = datetime(2000, 1, 1, tzinfo=UTC)
 
 @router.get("")
 def list_batches(
-    session: SessionDep, limit: Annotated[int, Query(ge=1, le=500)] = 100
+    session: SessionDep, scope: ScopeDep, limit: Annotated[int, Query(ge=1, le=500)] = 100
 ) -> list[BatchPublic]:
-    query = select(Batch).order_by(col(Batch.started_at).desc(), col(Batch.id).desc()).limit(limit)
+    query = (
+        owned(
+            select(Batch).join(Device, col(Device.id) == col(Batch.device_id)),
+            col(Device.owner_id),
+            scope,
+        )
+        .order_by(col(Batch.started_at).desc(), col(Batch.id).desc())
+        .limit(limit)
+    )
     return [BatchPublic.model_validate(b) for b in session.exec(query).all()]
 
 
 @router.get("/{batch_id}")
-def get_batch(batch_id: int, session: SessionDep) -> BatchDetail:
-    batch = get_batch_or_404(session, batch_id)
+def get_batch(batch_id: int, session: SessionDep, scope: ScopeDep) -> BatchDetail:
+    batch = get_batch_or_404(session, batch_id, scope)
     return BatchDetail(
         **BatchPublic.model_validate(batch).model_dump(),
         metrics=_summarize_metrics(session, batch),
@@ -46,8 +55,8 @@ def get_batch(batch_id: int, session: SessionDep) -> BatchDetail:
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-def create_batch(payload: BatchCreate, session: SessionDep) -> BatchPublic:
-    _ensure_device_exists(session, payload.device_id)
+def create_batch(payload: BatchCreate, session: SessionDep, user: UserDep) -> BatchPublic:
+    _ensure_device_exists(session, payload.device_id, user)
     started_at = payload.started_at or utcnow()
     _check_window(started_at, payload.ended_at)
     batch = Batch.model_validate(payload, update={"started_at": started_at})
@@ -56,8 +65,10 @@ def create_batch(payload: BatchCreate, session: SessionDep) -> BatchPublic:
 
 
 @router.patch("/{batch_id}")
-def update_batch(batch_id: int, payload: BatchUpdate, session: SessionDep) -> BatchPublic:
-    batch = get_batch_or_404(session, batch_id)
+def update_batch(
+    batch_id: int, payload: BatchUpdate, session: SessionDep, user: UserDep
+) -> BatchPublic:
+    batch = get_batch_or_404(session, batch_id, user)
     changes = payload.model_dump(exclude_unset=True)
     _check_window(
         changes.get("started_at", batch.started_at), changes.get("ended_at", batch.ended_at)
@@ -115,7 +126,9 @@ def _summarize_metrics(session: Session, batch: Batch) -> list[MetricSummary]:
     ]
 
 
-def _ensure_device_exists(session: Session, device_id: int) -> None:
-    # 422, not a raw FK error swallowed into a 409: the id is part of the payload the admin sent.
-    if session.get(Device, device_id) is None:
+def _ensure_device_exists(session: Session, device_id: int, user: User) -> None:
+    # 422, not a raw FK error swallowed into a 409: the id is part of the payload the caller sent.
+    # Another owner's device counts as unknown, so its id is not revealed.
+    query = owned(select(Device).where(Device.id == device_id), col(Device.owner_id), user)
+    if session.exec(query).first() is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown device_id")

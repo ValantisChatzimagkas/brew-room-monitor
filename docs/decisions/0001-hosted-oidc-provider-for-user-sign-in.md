@@ -21,7 +21,7 @@ Use Auth0 as the OIDC provider. The backend verifies RS256 access tokens against
 
 ### Devices and the admin token
 - Devices keep their opaque per-device tokens (SHA-256 hash lookup, revoke/rotate). No JWT: flashed devices cannot be updated and cannot run expiry or refresh logic.
-- The admin token is transitional. Once owner scoping ships, locations are created, and devices are registered, updated, revoked and rotated, only with a user JWT, so every device has an owner; an admin call carries no user and would need an act-as-user path, which is roles and out of scope. Until the frontend login ships and moves it to user tokens, the admin token keeps the unscoped devices, locations and readings list reads, and it keeps the batch routes until batches are scoped through their device's owner. It is retired once no route needs it.
+- The admin token is transitional. Once owner scoping ships, locations are created, and devices are registered, updated, revoked and rotated, only with a user JWT, so every device has an owner; an admin call carries no user and would need an act-as-user path, which is roles and out of scope. Until the frontend login ships and moves it to user tokens, the admin token keeps the unscoped devices, locations, readings and batches reads (a batch by id too). It is retired once no route needs it (SOL-14).
 
 ### Env vars (names only, never values)
 - Backend: `AUTH_ISSUER` (must equal the token's `iss` exactly, trailing slash included; Auth0's ends in `/`) and `AUTH_AUDIENCE`. The JWKS URL comes from the issuer's OIDC discovery document, so there is no JWKS var. RS256 is a code constant, not env, so a token cannot choose its own algorithm. The backend holds no password or signing secret.
@@ -37,4 +37,3 @@ Use Auth0 as the OIDC provider. The backend verifies RS256 access tokens against
 ## Supersedes
 Nothing yet for these; they stay true until the named tickets ship, and those tickets update them:
 - JWT verification and frontend login: `ARCHITECTURE.md` ("The browser never calls the backend", "Two token kinds" say there is no user auth), the auth guardrails in root `CLAUDE.md` and `frontend/CLAUDE.md`. `frontend/CLAUDE.md` also says `client.ts` is the only file that reads `process.env`; the Auth0 SDK reads its own env vars, so the frontend login work must amend that rule or load the config through `client.ts`.
-- Batch scoping: batches stay admin-only until they are scoped through their device's owner; the admin token is retired after that.
