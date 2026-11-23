@@ -1,17 +1,26 @@
 version: 2
 # Grouped weekly PRs; cooldown skips brand-new releases (hijacked versions are usually pulled fast).
-# Security updates ignore both and open immediately.
+# Security updates ignore cooldown and groups and open immediately.
+# Majors are ignored (npm, uv, docker, docker-compose) so a group PR never bundles an upgrade we can't take yet
+# and goes red. The docker `python` tag has no patch part, so its minor bumps are ignored too.
+# `update-types` ignores don't apply to security updates, so those still open. A `versions` ignore would block them.
+# To upgrade deliberately, bump the pin by hand in every place it lives (drop only the `python` rule to track its minors again):
+#   Python: backend/Dockerfile, backend/.python-version, backend/pyproject.toml (requires-python, ruff target-version).
+#   Postgres: docker-compose.yml and .github/workflows/ci.yml (Dependabot doesn't track the CI one).
+#   TypeScript: blocked until openapi-typescript supports it.
 updates:
   - package-ecosystem: uv
     directory: /backend
     schedule: { interval: weekly }
     cooldown: { default-days: 3 }
     groups: { backend: { patterns: ["*"] } }
+    ignore: [{ dependency-name: "*", update-types: ["version-update:semver-major"] }]
   - package-ecosystem: npm
     directory: /frontend
     schedule: { interval: weekly }
     cooldown: { default-days: 3 }
     groups: { frontend: { patterns: ["*"] } }
+    ignore: [{ dependency-name: "*", update-types: ["version-update:semver-major"] }]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
@@ -20,6 +29,10 @@ updates:
     directories: [/backend, /frontend]
     schedule: { interval: weekly }
     groups: { docker: { patterns: ["*"] } }
+    ignore:
+      - { dependency-name: "*", update-types: ["version-update:semver-major"] }
+      - { dependency-name: python, update-types: ["version-update:semver-minor"] }
   - package-ecosystem: docker-compose
     directory: /
     schedule: { interval: weekly }
+    ignore: [{ dependency-name: "*", update-types: ["version-update:semver-major"] }]
