@@ -36,11 +36,6 @@ def _is_admin(creds: HTTPAuthorizationCredentials | None, settings: Settings) ->
     return creds is not None and secrets.compare_digest(creds.credentials, expected)
 
 
-def require_admin(creds: BearerDep, settings: SettingsDep) -> None:
-    if not _is_admin(creds, settings):
-        raise _UNAUTHORIZED
-
-
 def current_device(creds: BearerDep, session: SessionDep) -> Device:
     if creds is None:
         raise _UNAUTHORIZED
@@ -120,7 +115,6 @@ def get_batch_or_404(session: Session, batch_id: int, scope: User | None = None)
     return batch
 
 
-AdminDep = Depends(require_admin)
 DeviceDep = Annotated[Device, Depends(current_device)]
 UserDep = Annotated[User, Depends(current_user)]
 ScopeDep = Annotated[User | None, Depends(owner_scope)]

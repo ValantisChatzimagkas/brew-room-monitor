@@ -16,14 +16,18 @@ USER_ROUTES = {
     ("PATCH", "/api/v1/devices/{device_id}"),
     ("POST", "/api/v1/devices/{device_id}/revoke"),
     ("POST", "/api/v1/devices/{device_id}/rotate"),
+    ("POST", "/api/v1/batches"),
+    ("PATCH", "/api/v1/batches/{batch_id}"),
 }
-# Owner-scoped lists: a user sees their own rows, the admin token everything.
+# Owner-scoped reads: a user sees their own rows, the admin token everything.
 USER_OR_ADMIN_ROUTES = {
     ("GET", "/api/v1/devices"),
     ("GET", "/api/v1/locations"),
     ("GET", "/api/v1/readings"),
+    ("GET", "/api/v1/batches"),
+    ("GET", "/api/v1/batches/{batch_id}"),
 }
-# Every route not listed here or in DEVICE_ROUTES is admin-only.
+# No route is admin-only: one listed in no table must reject every token kind.
 DEVICE_ROUTES = {("POST", "/api/v1/readings")}
 
 
@@ -46,7 +50,7 @@ def _allowed_kinds(method: str, path: str) -> set[str]:
         return {"user"}
     if route in USER_OR_ADMIN_ROUTES:
         return {"user", "admin"}
-    return {"device"} if route in DEVICE_ROUTES else {"admin"}
+    return {"device"} if route in DEVICE_ROUTES else set()
 
 
 def test_every_route_requires_its_token(
