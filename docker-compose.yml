@@ -17,10 +17,12 @@ services:
   backend:
     build: ./backend
     # DATABASE_URL / API_URL are literals on purpose: the root .env holds native-dev (localhost)
-    # values, so do not add `env_file:`. Only ADMIN_TOKEN is taken from it.
+    # values, so do not add `env_file:`. Only the secrets and AUTH_* / AUTH0_* values are taken from it.
     environment:
       DATABASE_URL: postgresql+psycopg://brew:brew@db:5432/brew
       ADMIN_TOKEN: ${ADMIN_TOKEN:?set ADMIN_TOKEN in .env}
+      AUTH_ISSUER: ${AUTH_ISSUER:-}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-}
       ENVIRONMENT: local
     ports: ["8000:8000"]  # ESP32s on the LAN post here
     depends_on:
@@ -36,7 +38,12 @@ services:
     build: ./frontend
     environment:
       API_URL: http://backend:8000
-      ADMIN_TOKEN: ${ADMIN_TOKEN}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-}
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
+      AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET:-}
+      AUTH0_SECRET: ${AUTH0_SECRET:-}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
     ports: ["3000:3000"]
     depends_on:
       backend: { condition: service_healthy }

@@ -1,7 +1,11 @@
 import "server-only";
 
+import { AccessTokenError } from "@auth0/nextjs-auth0/errors";
+import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import createClient from "openapi-fetch";
+
+import { getAuth0, signInPath } from "@/lib/auth0";
 
 import type { components, paths } from "./schema";
 
@@ -10,14 +14,23 @@ export type Reading = components["schemas"]["ReadingPublic"];
 export type Metric = components["schemas"]["Metric"];
 
 /**
- * Typed backend client. Server-only: the admin token must never reach the browser.
+ * Typed backend client acting as the signed-in user: forwards their access token, so the backend scopes
+ * every row to them. Server-only: the token must never reach the browser or a `NEXT_PUBLIC_*` variable.
  * Reads env at request time (not build time) so one Docker image works everywhere.
+ * No session, or an expired token, redirects to sign-in; nothing is cached across calls (one client per user).
  */
 export async function getApi() {
   await connection();
   const baseUrl = process.env.API_URL;
-  const token = process.env.ADMIN_TOKEN;
-  if (!baseUrl || !token) throw new Error("API_URL and ADMIN_TOKEN must be set");
+  if (!baseUrl) throw new Error("API_URL must be set");
+
+  let token: string;
+  try {
+    ({ token } = await getAuth0().getAccessToken());
+  } catch (error) {
+    if (!(error instanceof AccessTokenError)) throw error;
+    redirect(signInPath("/"));
+  }
 
   return createClient<paths>({
     baseUrl,
