@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+import { buttonVariants } from "@/components/ui/button";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -23,7 +25,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <header className="mx-auto flex w-full max-w-4xl justify-end px-6 pt-4">
+          {/* A plain <a>, not <Link>: the SDK's logout route must not be prefetched. */}
+          <a href="/auth/logout" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            Sign out
+          </a>
+        </header>
+        {children}
+      </body>
     </html>
   );
 }
