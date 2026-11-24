@@ -19,7 +19,7 @@ JAN_21 = datetime(2026, 1, 21, tzinfo=UTC)
 
 def _create(
     client: TestClient,
-    admin_headers: dict[str, str],
+    headers: dict[str, str],
     device_id: int,
     started_at: datetime | None = None,
     ended_at: datetime | None = None,
@@ -30,15 +30,18 @@ def _create(
         body["started_at"] = started_at.isoformat()
     if ended_at is not None:
         body["ended_at"] = ended_at.isoformat()
-    return client.post("/api/v1/batches", json=body, headers=admin_headers).status_code
+    return client.post("/api/v1/batches", json=body, headers=headers).status_code
 
 
 def test_create_and_list(
-    client: TestClient, admin_headers: dict[str, str], make_device: MakeDevice
+    client: TestClient,
+    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
+    make_device: MakeDevice,
 ) -> None:
     device_id, _ = make_device("vessel-a")
     res = client.post(
-        "/api/v1/batches", json={"name": " ipa ", "device_id": device_id}, headers=admin_headers
+        "/api/v1/batches", json={"name": " ipa ", "device_id": device_id}, headers=user_headers
     )
     assert res.status_code == 201
     created = res.json()
@@ -50,7 +53,7 @@ def test_create_and_list(
 
     for name, day in (("stout", JAN_1), ("lager", JAN_10)):
         other_id, _ = make_device(f"vessel-{name}")
-        assert _create(client, admin_headers, other_id, day, name=name) == 201
+        assert _create(client, user_headers, other_id, day, name=name) == 201
 
     listed = client.get("/api/v1/batches", headers=admin_headers).json()
     assert [b["name"] for b in listed] == ["ipa", "lager", "stout"]
@@ -59,7 +62,7 @@ def test_create_and_list(
 
 
 def test_create_rejects_bad_payloads(
-    client: TestClient, admin_headers: dict[str, str], make_device: MakeDevice
+    client: TestClient, user_headers: dict[str, str], make_device: MakeDevice
 ) -> None:
     device_id, _ = make_device("vessel-a")
     future = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
@@ -77,16 +80,16 @@ def test_create_rejects_bad_payloads(
         {**ok, "started_at": JAN_1.isoformat(), "ended_at": future},
     ]
     for body in bad_bodies:
-        res = client.post("/api/v1/batches", json=body, headers=admin_headers)
+        res = client.post("/api/v1/batches", json=body, headers=user_headers)
         assert res.status_code == 422, body
 
 
 def test_overlap_conflicts(
-    client: TestClient, admin_headers: dict[str, str], make_device: MakeDevice
+    client: TestClient, user_headers: dict[str, str], make_device: MakeDevice
 ) -> None:
     device_a, _ = make_device("vessel-a")
     device_b, _ = make_device("vessel-b")
-    assert _create(client, admin_headers, device_a, JAN_1, JAN_10) == 201
+    assert _create(client, user_headers, device_a, JAN_1, JAN_10) == 201
 
     # (started_at, ended_at, expected status) against the existing [Jan 1, Jan 10) on device A.
     cases = [
@@ -98,40 +101,40 @@ def test_overlap_conflicts(
         (JAN_1 - timedelta(days=5), JAN_1, 201),  # ends exactly where the other starts
     ]
     for started_at, ended_at, expected in cases:
-        status = _create(client, admin_headers, device_a, started_at, ended_at)
+        status = _create(client, user_headers, device_a, started_at, ended_at)
         assert status == expected, (started_at, ended_at)
 
     # The same window on another device is free.
-    assert _create(client, admin_headers, device_b, JAN_1, JAN_10) == 201
+    assert _create(client, user_headers, device_b, JAN_1, JAN_10) == 201
 
     # An open batch runs to now: it blocks a later create on its device, not on others.
     open_start = JAN_15 + timedelta(days=30)
-    assert _create(client, admin_headers, device_a, open_start) == 201
-    assert _create(client, admin_headers, device_a, open_start + timedelta(days=1)) == 409
-    assert _create(client, admin_headers, device_b, open_start) == 201
+    assert _create(client, user_headers, device_a, open_start) == 201
+    assert _create(client, user_headers, device_a, open_start + timedelta(days=1)) == 409
+    assert _create(client, user_headers, device_b, open_start) == 201
 
 
 def test_end_batch_then_start_next(
     client: TestClient,
-    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     make_device: MakeDevice,
     make_batch: MakeBatch,
 ) -> None:
     device_id, _ = make_device("vessel-a")
     batch_id = make_batch(device_id, JAN_1)
-    assert _create(client, admin_headers, device_id, JAN_10) == 409  # first one is still open
+    assert _create(client, user_headers, device_id, JAN_10) == 409  # first one is still open
 
     res = client.patch(
-        f"/api/v1/batches/{batch_id}", json={"ended_at": JAN_10.isoformat()}, headers=admin_headers
+        f"/api/v1/batches/{batch_id}", json={"ended_at": JAN_10.isoformat()}, headers=user_headers
     )
     assert res.status_code == 200
     assert datetime.fromisoformat(res.json()["ended_at"]) == JAN_10
-    assert _create(client, admin_headers, device_id, JAN_10) == 201
+    assert _create(client, user_headers, device_id, JAN_10) == 201
 
 
 def test_end_rejects_bad_times(
     client: TestClient,
-    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     make_device: MakeDevice,
     make_batch: MakeBatch,
 ) -> None:
@@ -142,14 +145,14 @@ def test_end_rejects_bad_times(
         res = client.patch(
             f"/api/v1/batches/{batch_id}",
             json={"ended_at": ended_at.isoformat()},
-            headers=admin_headers,
+            headers=user_headers,
         )
         assert res.status_code == expected, ended_at
 
 
 def test_update_overlap_conflicts(
     client: TestClient,
-    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     make_device: MakeDevice,
     make_batch: MakeBatch,
 ) -> None:
@@ -164,23 +167,23 @@ def test_update_overlap_conflicts(
         (first, {"ended_at": None}),  # reopen while a later batch exists
     ]
     for batch_id, changes in cases:
-        res = client.patch(f"/api/v1/batches/{batch_id}", json=changes, headers=admin_headers)
+        res = client.patch(f"/api/v1/batches/{batch_id}", json=changes, headers=user_headers)
         assert res.status_code == 409, changes
 
 
 def test_update_rejects_nulls_and_unknown_id(
     client: TestClient,
-    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     make_device: MakeDevice,
     make_batch: MakeBatch,
 ) -> None:
     device_id, _ = make_device("vessel-a")
     batch_id = make_batch(device_id, JAN_1)
     for changes in ({"name": None}, {"name": ""}, {"started_at": None}):
-        res = client.patch(f"/api/v1/batches/{batch_id}", json=changes, headers=admin_headers)
+        res = client.patch(f"/api/v1/batches/{batch_id}", json=changes, headers=user_headers)
         assert res.status_code == 422, changes
 
-    res = client.patch("/api/v1/batches/999", json={"name": "x"}, headers=admin_headers)
+    res = client.patch("/api/v1/batches/999", json={"name": "x"}, headers=user_headers)
     assert res.status_code == 404
 
 
@@ -337,3 +340,76 @@ def test_open_batch_summary_runs_to_now(
 
 def test_get_unknown_batch_is_404(client: TestClient, admin_headers: dict[str, str]) -> None:
     assert client.get("/api/v1/batches/999", headers=admin_headers).status_code == 404
+
+
+def test_owners_cannot_see_each_others_batches(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
+    other_user_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+) -> None:
+    alice_device, _ = make_device("vessel-a")
+    alice_batch = make_batch(alice_device, JAN_10)  # newer than bob's, so it fills `limit=1`
+    bob_device = client.post(
+        "/api/v1/devices",
+        json={"name": "vessel-b", "kind": "in_vessel"},
+        headers=other_user_headers,
+    ).json()["id"]
+    res = client.post(
+        "/api/v1/batches",
+        json={"name": "stout", "device_id": bob_device, "started_at": JAN_1.isoformat()},
+        headers=other_user_headers,
+    )
+    assert res.status_code == 201
+    bob_batch = res.json()["id"]
+
+    def ids(headers: dict[str, str], **params: int) -> list[int]:
+        res = client.get("/api/v1/batches", params=params, headers=headers)
+        return [b["id"] for b in res.json()]
+
+    assert ids(user_headers) == [alice_batch]
+    assert ids(other_user_headers) == [bob_batch]
+    assert ids(admin_headers) == [alice_batch, bob_batch]
+    assert ids(other_user_headers, limit=1) == [bob_batch]  # the owner filter runs before `limit`
+    for headers, batch_id in (
+        (user_headers, alice_batch),
+        (other_user_headers, bob_batch),
+        (admin_headers, alice_batch),
+        (admin_headers, bob_batch),
+    ):
+        assert client.get(f"/api/v1/batches/{batch_id}", headers=headers).status_code == 200
+
+    # A foreign row answers exactly like a missing one: nothing reveals that it exists.
+    for method, body in (("GET", None), ("PATCH", {"name": "x"})):
+        foreign = client.request(
+            method, f"/api/v1/batches/{alice_batch}", json=body, headers=other_user_headers
+        )
+        missing = client.request(
+            method, "/api/v1/batches/999", json=body, headers=other_user_headers
+        )
+        assert foreign.status_code == 404, method
+        assert (foreign.status_code, foreign.json()) == (missing.status_code, missing.json())
+    assert (
+        client.get(f"/api/v1/batches/{alice_batch}", headers=user_headers).json()["name"] == "ipa"
+    )
+
+    new_batch = {"name": "x", "started_at": JAN_1.isoformat()}
+    foreign_device = client.post(
+        "/api/v1/batches", json={**new_batch, "device_id": alice_device}, headers=other_user_headers
+    )
+    unknown_device = client.post(
+        "/api/v1/batches", json={**new_batch, "device_id": 999}, headers=other_user_headers
+    )
+    assert foreign_device.status_code == 422
+    assert (foreign_device.status_code, foreign_device.json()) == (
+        unknown_device.status_code,
+        unknown_device.json(),
+    )
+    assert ids(user_headers) == [alice_batch]
+
+    res = client.patch(
+        f"/api/v1/batches/{alice_batch}", json={"name": "pale"}, headers=user_headers
+    )
+    assert (res.status_code, res.json()["name"]) == (200, "pale")
