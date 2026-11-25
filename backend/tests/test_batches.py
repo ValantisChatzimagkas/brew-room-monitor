@@ -534,9 +534,6 @@ def _note(code: str, duration_s: int, delta_c: float | None = None) -> dict[str,
     return {"code": code, "duration_s": duration_s, "delta_c": delta}
 
 
-H = timedelta(hours=1)
-
-
 # Range 18–22 unless the row says otherwise. A trailing reading closes the previous span; after
 # hot readings it stays within 4 °C of them, so sharp_drop doesn't fire as a side effect.
 @pytest.mark.parametrize(
@@ -614,7 +611,7 @@ H = timedelta(hours=1)
             id="sharp-drop-at-12h",
         ),
         pytest.param(
-            [("temperature_c", 22, JAN_10), ("temperature_c", 18, JAN_10 + 12 * H + MIN)],
+            [("temperature_c", 22, JAN_10), ("temperature_c", 18, JAN_10 + 12 * 60 * MIN + MIN)],
             RANGE_18_22,
             [_note("in_range", 3600)],
             id="drop-outside-window",

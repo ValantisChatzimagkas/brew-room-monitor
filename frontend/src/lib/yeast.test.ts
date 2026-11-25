@@ -50,4 +50,8 @@ describe("noteText", () => {
     for (const n of numbers) expect(text).toContain(n);
     expect(/\bmay\b/.test(text)).toBe(hedged);
   });
+
+  it.each(["early_hot", "sharp_drop"] as const)("%s without delta_c throws (broken contract)", (code) => {
+    expect(() => noteText({ code, duration_s: 3600, delta_c: null }, range)).toThrow();
+  });
 });
