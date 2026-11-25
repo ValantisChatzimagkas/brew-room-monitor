@@ -18,8 +18,13 @@ export function rangeSince(range: Range, now: Date): Date {
   return new Date(now.getTime() - RANGE_HOURS[range] * HOUR_MS);
 }
 
-export function parseDeviceId(raw: string): number | null {
-  return /^\d+$/.test(raw) ? Number(raw) : null;
+/** Ids are Postgres `integer` columns: a larger id makes the backend answer 500, so treat it as not found. */
+const MAX_DB_ID = 2147483647;
+
+export function parseId(raw: string): number | null {
+  if (!/^\d+$/.test(raw)) return null;
+  const id = Number(raw);
+  return id <= MAX_DB_ID ? id : null;
 }
 
 /** The API returns newest first; charts want oldest first. */

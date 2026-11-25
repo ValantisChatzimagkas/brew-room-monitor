@@ -6,6 +6,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
 import type { Metric } from "@/lib/api/client";
 import type { ChartPoint } from "@/lib/history";
 import { formatValue, METRIC_INFO } from "@/lib/metrics";
+import { chartTickFormat } from "@/lib/time";
 
 /** Times are formatted here, in the browser, so the server's timezone never reaches the HTML. */
 export function MetricChart({
@@ -31,7 +32,7 @@ export function MetricChart({
           type="number"
           scale="time"
           domain={[from, to]}
-          tickFormatter={(t: number) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          tickFormatter={(t: number) => new Date(t).toLocaleString([], chartTickFormat(to - from))}
           tickLine={false}
           axisLine={false}
         />

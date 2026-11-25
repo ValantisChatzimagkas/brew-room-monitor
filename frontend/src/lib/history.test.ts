@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isPartial, parseDeviceId, parseRange, rangeSince, toPoints } from "./history";
+import { isPartial, parseId, parseRange, rangeSince, toPoints } from "./history";
 
 describe("parseRange", () => {
   it.each([
@@ -28,7 +28,7 @@ describe("rangeSince", () => {
   });
 });
 
-describe("parseDeviceId", () => {
+describe("parseId", () => {
   it.each([
     ["12", 12],
     ["abc", null],
@@ -38,8 +38,11 @@ describe("parseDeviceId", () => {
     ["1e3", null],
     ["0x1", null],
     [" 12", null],
+    ["2147483647", 2147483647],
+    ["2147483648", null],
+    ["1000000000000000000000", null],
   ])("%j -> %s", (raw, expected) => {
-    expect(parseDeviceId(raw)).toBe(expected);
+    expect(parseId(raw)).toBe(expected);
   });
 });
 
