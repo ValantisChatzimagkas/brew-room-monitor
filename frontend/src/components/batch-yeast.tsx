@@ -1,6 +1,6 @@
 import type { BatchDetail } from "@/lib/api/client";
 import { formatValue } from "@/lib/metrics";
-import { yeastSplit } from "@/lib/yeast";
+import { yeastRange, yeastSplit } from "@/lib/yeast";
 
 /** The batch's yeast and, when it has a range, its readings below / inside / above it. */
 export function BatchYeast({ batch }: { batch: BatchDetail }) {
@@ -26,12 +26,11 @@ export function BatchYeast({ batch }: { batch: BatchDetail }) {
 function YeastLine({ batch }: { batch: BatchDetail }) {
   // Optional in the generated type (the fields have defaults), though the API always sends them.
   const name = batch.yeast_name ?? null;
-  const min = batch.yeast_min_temperature_c ?? null;
-  const max = batch.yeast_max_temperature_c ?? null;
-  if (min !== null && max !== null) {
+  const range = yeastRange(batch);
+  if (range !== null) {
     return (
       <p>
-        Yeast: {name ?? "unnamed"} · {formatValue("temperature_c", min)} – {formatValue("temperature_c", max)}
+        Yeast: {name ?? "unnamed"} · {formatValue("temperature_c", range.min)} – {formatValue("temperature_c", range.max)}
       </p>
     );
   }

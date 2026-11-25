@@ -13,6 +13,7 @@ import { findDevice, getApi } from "@/lib/api/client";
 import { parseId, READINGS_LIMIT, toPoints } from "@/lib/history";
 import { inMetricOrder, METRIC_INFO } from "@/lib/metrics";
 import { formatAge } from "@/lib/time";
+import { yeastRange } from "@/lib/yeast";
 
 export default function BatchPage({ params }: PageProps<"/batches/[id]">) {
   return (
@@ -54,6 +55,7 @@ async function BatchDetailView({ params }: Pick<PageProps<"/batches/[id]">, "par
   const withRows = results.filter(({ rows }) => rows.length > 0);
   const from = Date.parse(batch.started_at);
   const to = batch.ended_at ? Date.parse(batch.ended_at) : now.getTime();
+  const range = yeastRange(batch) ?? undefined;
 
   return (
     <>
@@ -92,7 +94,13 @@ async function BatchDetailView({ params }: Pick<PageProps<"/batches/[id]">, "par
                 </CardHeader>
                 <CardContent>
                   <PartialNotice count={rows.length} where="in this batch" />
-                  <MetricChart metric={metric} points={toPoints(rows)} from={from} to={to} />
+                  <MetricChart
+                    metric={metric}
+                    points={toPoints(rows)}
+                    from={from}
+                    to={to}
+                    yeastRange={metric === "temperature_c" ? range : undefined}
+                  />
                 </CardContent>
               </Card>
             ))}
