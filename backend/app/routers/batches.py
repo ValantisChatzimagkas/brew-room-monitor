@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -29,6 +29,9 @@ router = APIRouter(prefix="/batches", tags=["batches"])
 _OVERLAP = "Batch overlaps another batch on this device"
 # Far below any brew, and far above what Postgres timestamptz rejects with a 500.
 _EARLIEST = datetime(2000, 1, 1, tzinfo=UTC)
+# A reading stands for the time until the next one; a longer gap means the sensor was off, so the
+# earlier reading counts at most this long.
+_READING_SPAN_CAP = timedelta(hours=1)
 
 
 @router.get("")
@@ -153,15 +156,31 @@ def _fit_yeast_range(session: Session, batch: Batch) -> YeastFit | None:
     low, high = batch.yeast_min_temperature_c, batch.yeast_max_temperature_c
     if low is None or high is None:
         return None
-    value = col(Reading.value)
+    recorded_at = col(Reading.recorded_at)
+    # The window runs after WHERE, so a reading outside the batch is never a neighbour. The newest
+    # has no next reading, so lead() defaults to its own time and it spans 0 s (a NULL would not do:
+    # LEAST ignores NULLs and would give it the cap). Ties are ordered by id, as in
+    # _summarize_metrics.
+    next_at = func.lead(recorded_at, 1, recorded_at).over(order_by=(recorded_at, col(Reading.id)))
+    spans = (
+        select_columns(
+            col(Reading.value).label("value"),
+            func.least(
+                func.extract("epoch", next_at - recorded_at), _READING_SPAN_CAP.total_seconds()
+            ).label("span_s"),
+        )
+        .where(*batch_readings_filter(batch), col(Reading.metric) == Metric.TEMPERATURE_C)
+        .subquery()
+    )
+    value, span_s = spans.c.value, spans.c.span_s
     # No GROUP BY, so a window without temperature readings still gives one row of zeros.
     query = select_columns(
-        func.count().filter(value < low),
-        func.count().filter(value.between(low, high)),  # inclusive: a bound counts as inside
-        func.count().filter(value > high),
-    ).where(*batch_readings_filter(batch), col(Reading.metric) == Metric.TEMPERATURE_C)
+        func.coalesce(func.sum(span_s).filter(value < low), 0),
+        func.coalesce(func.sum(span_s).filter(value.between(low, high)), 0),  # bounds are inside
+        func.coalesce(func.sum(span_s).filter(value > high), 0),
+    )
     below, inside, above = session.execute(query).one()
-    return YeastFit(below=below, inside=inside, above=above)
+    return YeastFit(below_s=round(below), inside_s=round(inside), above_s=round(above))
 
 
 def _ensure_device_exists(session: Session, device_id: int, user: User) -> None:

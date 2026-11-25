@@ -1585,27 +1585,27 @@
       },
       "YeastFit": {
         "properties": {
-          "below": {
+          "below_s": {
             "type": "integer",
-            "title": "Below"
+            "title": "Below S"
           },
-          "inside": {
+          "inside_s": {
             "type": "integer",
-            "title": "Inside"
+            "title": "Inside S"
           },
-          "above": {
+          "above_s": {
             "type": "integer",
-            "title": "Above"
+            "title": "Above S"
           }
         },
         "type": "object",
         "required": [
-          "below",
-          "inside",
-          "above"
+          "below_s",
+          "inside_s",
+          "above_s"
         ],
         "title": "YeastFit",
-        "description": "The batch's temperature_c readings counted against its yeast range (bounds are inside)."
+        "description": "Whole seconds the batch's temperature_c readings spent below, inside, above its yeast range.\n\nEach reading spans until the next one in the window, capped at 1 h; the newest counts zero.\nBounds are inside."
       }
     },
     "securitySchemes": {

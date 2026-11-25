@@ -410,7 +410,7 @@ def test_open_batch_summary_runs_to_now(
     assert summary["max_value"] == 20  # the reading ahead of now is excluded, as in list_readings
 
 
-def test_yeast_fit_counts_readings_against_the_range(
+def test_yeast_fit_times_readings_against_the_range(
     client: TestClient,
     user_headers: dict[str, str],
     make_device: MakeDevice,
@@ -418,10 +418,11 @@ def test_yeast_fit_counts_readings_against_the_range(
 ) -> None:
     a_id, a_headers = make_device("vessel-a")
     _, b_headers = make_device("vessel-b")
-    # Distinct hours inside the window, so no two readings dedupe; 18 and 22 sit on the bounds.
+    # 10 min apart, each spanning until the next; 18 and 22 sit on the bounds, the last 20 is the
+    # newest and counts zero.
     in_window = [
-        ("temperature_c", value, JAN_10 + timedelta(hours=hour))
-        for hour, value in enumerate((17.9, 18, 20, 22, 22.1))
+        ("temperature_c", value, JAN_10 + timedelta(minutes=10 * i))
+        for i, value in enumerate((17.9, 18, 20, 22, 22.1, 20))
     ]
     _ingest(
         client,
@@ -429,6 +430,7 @@ def test_yeast_fit_counts_readings_against_the_range(
         [
             *in_window,
             ("temperature_c", 30, JAN_5),  # before the window
+            ("temperature_c", 30, JAN_20),  # at ended_at: outside, so never the newest's neighbour
             ("specific_gravity", 1.05, JAN_12),  # not a temperature
         ],
     )
@@ -437,9 +439,9 @@ def test_yeast_fit_counts_readings_against_the_range(
         a_id, JAN_10, JAN_20, yeast_min_temperature_c=18, yeast_max_temperature_c=22
     )
     assert _get(client, user_headers, batch_id)["yeast_fit"] == {
-        "below": 1,
-        "inside": 3,
-        "above": 1,
+        "below_s": 600,
+        "inside_s": 1800,
+        "above_s": 600,
     }
 
     res = client.patch(
@@ -449,27 +451,65 @@ def test_yeast_fit_counts_readings_against_the_range(
     )
     assert res.status_code == 200
     assert _get(client, user_headers, batch_id)["yeast_fit"] == {
-        "below": 0,
-        "inside": 0,
-        "above": 5,
+        "below_s": 0,
+        "inside_s": 0,
+        "above_s": 3000,
     }
 
 
+T = JAN_12
+MIN = timedelta(minutes=1)
+RANGE_18_22 = {"yeast_min_temperature_c": 18, "yeast_max_temperature_c": 22}
+
+
+def _fit(below_s: int = 0, inside_s: int = 0, above_s: int = 0) -> dict[str, int]:
+    return {"below_s": below_s, "inside_s": inside_s, "above_s": above_s}
+
+
 @pytest.mark.parametrize(
-    ("readings", "yeast_range", "expected"),
+    ("readings", "yeast_range", "ended_at", "expected"),
     [
-        pytest.param([("temperature_c", 20, JAN_12)], {}, None, id="no-range"),
+        pytest.param([("temperature_c", 20, T)], {}, JAN_20, None, id="no-range"),
         pytest.param(
-            [("specific_gravity", 1.05, JAN_12)],
-            {"yeast_min_temperature_c": 18, "yeast_max_temperature_c": 22},
-            {"below": 0, "inside": 0, "above": 0},
-            id="range-no-temperature",
+            [("specific_gravity", 1.05, T)], RANGE_18_22, JAN_20, _fit(), id="range-no-temperature"
+        ),
+        pytest.param([], RANGE_18_22, JAN_20, _fit(), id="range-no-readings"),
+        pytest.param([("temperature_c", 25, T)], RANGE_18_22, JAN_20, _fit(), id="one-reading"),
+        pytest.param(
+            [
+                ("temperature_c", 20, T),
+                ("temperature_c", 21, T + 30 * MIN),
+                ("temperature_c", 19, T + 60 * MIN),
+            ],
+            RANGE_18_22,
+            JAN_20,
+            _fit(inside_s=3600),
+            id="all-inside",
         ),
         pytest.param(
-            [],
-            {"yeast_min_temperature_c": 18, "yeast_max_temperature_c": 22},
-            {"below": 0, "inside": 0, "above": 0},
-            id="range-no-readings",
+            [
+                ("temperature_c", 18, T),
+                ("temperature_c", 22, T + 10 * MIN),
+                ("temperature_c", 20, T + 20 * MIN),
+            ],
+            RANGE_18_22,
+            JAN_20,
+            _fit(inside_s=1200),
+            id="on-bounds",
+        ),
+        pytest.param(
+            [("temperature_c", 25, T), ("temperature_c", 20, T + 5 * 60 * MIN)],
+            RANGE_18_22,
+            JAN_20,
+            _fit(above_s=3600),
+            id="long-gap-capped",
+        ),
+        pytest.param(
+            [("temperature_c", 20, T), ("temperature_c", 30, T + 10 * MIN)],
+            RANGE_18_22,
+            None,
+            _fit(inside_s=600),
+            id="open-batch-newest-counts-zero",
         ),
     ],
 )
@@ -480,15 +520,16 @@ def test_yeast_fit_edge_cases(
     make_batch: MakeBatch,
     readings: list[tuple[str, float, datetime | None]],
     yeast_range: dict[str, float],
+    ended_at: datetime | None,
     expected: dict[str, int] | None,
 ) -> None:
     device_id, headers = make_device("vessel-a")
     if readings:
         _ingest(client, headers, readings)
-    batch_id = make_batch(device_id, JAN_10, JAN_20, **yeast_range)
+    batch_id = make_batch(device_id, JAN_10, ended_at, **yeast_range)
     detail = _get(client, user_headers, batch_id)
     assert detail["yeast_fit"] == expected
-    assert len(detail["metrics"]) == len(readings)  # the summary is unaffected
+    assert len(detail["metrics"]) == len({m for m, _, _ in readings})  # the summary is unaffected
 
 
 def test_get_unknown_batch_is_404(client: TestClient, user_headers: dict[str, str]) -> None:

@@ -416,15 +416,18 @@ export interface components {
         };
         /**
          * YeastFit
-         * @description The batch's temperature_c readings counted against its yeast range (bounds are inside).
+         * @description Whole seconds the batch's temperature_c readings spent below, inside, above its yeast range.
+         *
+         *     Each reading spans until the next one in the window, capped at 1 h; the newest counts zero.
+         *     Bounds are inside.
          */
         YeastFit: {
-            /** Below */
-            below: number;
-            /** Inside */
-            inside: number;
-            /** Above */
-            above: number;
+            /** Below S */
+            below_s: number;
+            /** Inside S */
+            inside_s: number;
+            /** Above S */
+            above_s: number;
         };
     };
     responses: never;

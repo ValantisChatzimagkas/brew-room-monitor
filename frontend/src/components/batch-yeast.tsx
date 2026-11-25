@@ -1,8 +1,9 @@
 import type { BatchDetail } from "@/lib/api/client";
 import { formatValue } from "@/lib/metrics";
+import { formatDuration } from "@/lib/time";
 import { yeastRange, yeastSplit } from "@/lib/yeast";
 
-/** The batch's yeast and, when it has a range, its readings below / inside / above it. */
+/** The batch's yeast and, when it has a range, the time its readings spent below / inside / above it. */
 export function BatchYeast({ batch }: { batch: BatchDetail }) {
   return (
     <div className="mb-4 text-sm">
@@ -13,7 +14,7 @@ export function BatchYeast({ batch }: { batch: BatchDetail }) {
             <span key={item.label}>
               {i > 0 && " · "}
               <span className={item.flagged ? "font-medium text-out-of-range" : undefined}>
-                {item.count} {item.label}
+                {formatDuration(item.seconds)} {item.label}
               </span>
             </span>
           ))}

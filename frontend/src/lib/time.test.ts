@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { chartTickFormat, formatAge, isStale, STALE_AFTER_MS } from "./time";
+import { chartTickFormat, formatAge, formatDuration, isStale, STALE_AFTER_MS } from "./time";
 
 const now = new Date("2026-01-01T12:00:00Z");
 const ago = (ms: number) => new Date(now.getTime() - ms);
@@ -37,6 +37,26 @@ describe("isStale", () => {
     ["all older than 30 min", [5 * D, 2 * H], true],
   ])("%s", (_, ages, expected) => {
     expect(isStale(ages.map((ms) => ({ recorded_at: iso(ms) })), now)).toBe(expected);
+  });
+});
+
+describe("formatDuration", () => {
+  const MIN_S = 60;
+  const H_S = 60 * MIN_S;
+  const D_S = 24 * H_S;
+  it.each([
+    ["zero", 0, "0 min"],
+    ["30 s", 30, "< 1 min"],
+    ["60 s", MIN_S, "1 min"],
+    ["59 min 59 s", H_S - 1, "59 min"],
+    ["1 h", H_S, "1 h"],
+    ["6.5 h", 6.5 * H_S, "6.5 h"],
+    ["47 h 59 min", 47 * H_S + 59 * MIN_S, "48 h"],
+    ["48 h", 48 * H_S, "2 d"],
+    ["3.5 d", 3.5 * D_S, "3.5 d"],
+    ["14 d", 14 * D_S, "14 d"],
+  ])("%s", (_, seconds, expected) => {
+    expect(formatDuration(seconds)).toBe(expected);
   });
 });
 
