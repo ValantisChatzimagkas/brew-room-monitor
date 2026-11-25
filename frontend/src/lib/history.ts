@@ -109,6 +109,18 @@ export function batchWindow(
 }
 
 /**
+ * Why an end time can't end this batch, in the user's words; `null` if it can. Mirrors the backend's
+ * `_check_window` (end == start voids the batch, end == now is allowed), which stays the authority.
+ */
+export function endTimeError(endedAtIso: string, startedAtIso: string, now: Date): string | null {
+  const end = Date.parse(endedAtIso);
+  if (!/(Z|[+-]\d{2}:\d{2})$/.test(endedAtIso) || !Number.isFinite(end)) return "Enter a valid end time.";
+  if (end < Date.parse(startedAtIso)) return "The end time is before the batch started.";
+  if (end > now.getTime()) return "The end time is in the future.";
+  return null;
+}
+
+/**
  * A manual granularity if the API would accept it, else Auto. One bucket of headroom under the cap: the
  * backend measures an open batch's window a moment after this render does.
  */

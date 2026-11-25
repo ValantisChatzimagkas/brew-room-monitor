@@ -7,6 +7,8 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const response = await getAuth0().middleware(request);
   const { pathname, search } = request.nextUrl;
   if (pathname.startsWith("/auth/")) return response;
+  // An action's fetch can't follow a 307 to sign-in, so the action's own `getApi()` redirects instead.
+  if (request.method === "POST" && request.headers.has("next-action")) return response;
 
   if (!(await getAuth0().getSession(request))) {
     // Both nextUrl and request.url carry the internal host (0.0.0.0 in the container); Next relativizes a

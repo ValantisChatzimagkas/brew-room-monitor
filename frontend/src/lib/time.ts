@@ -36,3 +36,19 @@ export function chartTickFormat(spanMs: number): Intl.DateTimeFormatOptions {
   if (spanMs <= DAY_MS) return { hour: "2-digit", minute: "2-digit" };
   return { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" };
 }
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/** A `datetime-local` value ("YYYY-MM-DDTHH:mm") for this instant in the runtime's time zone, floored to the minute. */
+export function toLocalInput(date: Date): string {
+  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return `${day}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** A `datetime-local` value read as the runtime's local time, as a UTC ISO string; `null` if it isn't one. */
+export function localInputToUtc(value: string): string | null {
+  // ECMAScript parses an offset-less date-time as local time, so anything carrying a zone is refused here.
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(value)) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}

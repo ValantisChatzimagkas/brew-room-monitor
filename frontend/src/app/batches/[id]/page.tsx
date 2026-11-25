@@ -6,6 +6,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { BatchNotes } from "@/components/batch-notes";
 import { BatchSummaryTable } from "@/components/batch-summary-table";
 import { BatchYeast } from "@/components/batch-yeast";
+import { EndBatchForm } from "@/components/end-batch-form";
 import { MetricChart } from "@/components/metric-chart";
 import { ReadingTime } from "@/components/reading-time";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -103,6 +104,11 @@ async function BatchDetailView({
             {device?.name ?? `Device ${batch.device_id}`}
           </Link>
         </p>
+        {batch.ended_at === null && (
+          <div className="mt-4">
+            <EndBatchForm batchId={batch.id} />
+          </div>
+        )}
         <div className="mt-4">
           <BatchYeast batch={batch} />
           {range && <BatchNotes notes={batch.notes} range={range} ambient={device?.kind === "ambient"} />}
