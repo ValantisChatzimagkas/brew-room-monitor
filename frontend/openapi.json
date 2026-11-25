@@ -44,6 +44,22 @@
         ],
         "parameters": [
           {
+            "name": "device_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Id"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
