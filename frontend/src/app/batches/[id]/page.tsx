@@ -29,8 +29,6 @@ import { inMetricOrder, METRIC_INFO } from "@/lib/metrics";
 import { formatAge } from "@/lib/time";
 import { yeastRange } from "@/lib/yeast";
 
-const PERIOD_LABELS: Record<BatchPeriod, string> = { "24h": "24h", "3d": "3d", "7d": "7d", whole: "Whole batch" };
-
 export default function BatchPage({ params, searchParams }: PageProps<"/batches/[id]">) {
   return (
     <main className="mx-auto w-full max-w-4xl p-6">
@@ -111,7 +109,7 @@ async function BatchDetailView({
           <nav aria-label="Period" className="flex gap-2">
             {BATCH_PERIODS.map((p) => (
               <PresetLink key={p} href={href(p, granularity)} active={p === period}>
-                {PERIOD_LABELS[p]}
+                {p === "whole" ? "Whole batch" : p}
               </PresetLink>
             ))}
           </nav>

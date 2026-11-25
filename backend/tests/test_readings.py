@@ -4,6 +4,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.conftest import post_readings
+
 
 def test_ingest_and_list(
     client: TestClient, device_headers: dict[str, str], user_headers: dict[str, str]
@@ -406,14 +408,6 @@ def _at(hhmm: str) -> datetime:
     return datetime.fromisoformat(f"2026-01-10T{hhmm}:00+00:00")
 
 
-def _post(
-    client: TestClient, headers: dict[str, str], readings: list[tuple[str, float, str]]
-) -> None:
-    body = [{"metric": m, "value": v, "recorded_at": _at(t).isoformat()} for m, v, t in readings]
-    res = client.post("/api/v1/readings", json={"readings": body}, headers=headers)
-    assert res.status_code == 201
-
-
 def _buckets(
     client: TestClient, headers: dict[str, str], **params: str | int
 ) -> list[tuple[datetime, float, float, float]]:
@@ -440,18 +434,18 @@ def bucketed_batch(
     """
     a_id, a_headers = make_device("vessel-a")
     _, b_headers = make_device("vessel-b")
-    _post(
+    post_readings(
         client,
         a_headers,
         [
-            ("temperature_c", 99.0, "10:00"),  # before the batch starts
-            ("temperature_c", 10.0, "10:10"),
-            ("temperature_c", 14.0, "10:50"),
-            ("temperature_c", 12.0, "11:20"),
-            ("specific_gravity", 1.05, "10:30"),
+            ("temperature_c", 99.0, _at("10:00")),  # before the batch starts
+            ("temperature_c", 10.0, _at("10:10")),
+            ("temperature_c", 14.0, _at("10:50")),
+            ("temperature_c", 12.0, _at("11:20")),
+            ("specific_gravity", 1.05, _at("10:30")),
         ],
     )
-    _post(client, b_headers, [("temperature_c", 50.0, "10:30")])
+    post_readings(client, b_headers, [("temperature_c", 50.0, _at("10:30"))])
     return make_batch(a_id, _at("10:05"), _at("12:00")), a_id
 
 

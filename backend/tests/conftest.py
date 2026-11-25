@@ -94,6 +94,20 @@ def _register_device(
     return int(res.json()["id"]), {"Authorization": f"Bearer {res.json()['token']}"}
 
 
+def post_readings(
+    client: TestClient,
+    headers: dict[str, str],
+    readings: list[tuple[str, float, datetime | None]],
+) -> None:
+    """Ingest `(metric, value, recorded_at)` readings; a None `recorded_at` = no device clock."""
+    body = [
+        {"metric": m, "value": v, **({"recorded_at": at.isoformat()} if at else {})}
+        for m, v, at in readings
+    ]
+    res = client.post("/api/v1/readings", json={"readings": body}, headers=headers)
+    assert res.status_code == 201
+
+
 @pytest.fixture
 def device_headers(
     client: TestClient, user_headers: dict[str, str], location_id: int
