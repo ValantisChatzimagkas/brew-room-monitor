@@ -4,7 +4,7 @@ import { CartesianGrid, Dot, Line, LineChart, ReferenceArea, XAxis, YAxis } from
 
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import type { Metric } from "@/lib/api/client";
-import type { ChartPoint } from "@/lib/history";
+import { type ChartGap, type ChartPoint, isIsolated } from "@/lib/history";
 import { formatValue, METRIC_INFO } from "@/lib/metrics";
 import { chartTickFormat } from "@/lib/time";
 import { yeastPosition, type YeastRange } from "@/lib/yeast";
@@ -21,7 +21,7 @@ export function MetricChart({
   yeastRange,
 }: {
   metric: Metric;
-  points: ChartPoint[];
+  points: (ChartPoint | ChartGap)[];
   from: number;
   to: number;
   yeastRange?: YeastRange;
@@ -87,7 +87,7 @@ export function MetricChart({
             type="monotone"
             stroke="var(--color-value)"
             strokeWidth={2}
-            dot={({ cx, cy, r, fill, stroke, strokeWidth, value }) => {
+            dot={({ cx, cy, r, fill, stroke, strokeWidth, value, index }) => {
               if (cx === undefined || cy === undefined || typeof value !== "number") return null;
               const where = position(value);
               if (where !== "inside") {
@@ -101,7 +101,7 @@ export function MetricChart({
                   />
                 );
               }
-              if (points.length !== 1) return null;
+              if (!isIsolated(points, index)) return null;
               return <Dot cx={cx} cy={cy} r={r} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
             }}
             isAnimationActive={false}

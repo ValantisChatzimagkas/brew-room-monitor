@@ -10,7 +10,7 @@ import { PartialNotice } from "@/components/partial-notice";
 import { ReadingTime } from "@/components/reading-time";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { findDevice, getApi } from "@/lib/api/client";
-import { parseId, READINGS_LIMIT, toPoints } from "@/lib/history";
+import { breakGaps, parseId, READINGS_LIMIT, toPoints } from "@/lib/history";
 import { inMetricOrder, METRIC_INFO } from "@/lib/metrics";
 import { formatAge } from "@/lib/time";
 import { yeastRange } from "@/lib/yeast";
@@ -96,7 +96,7 @@ async function BatchDetailView({ params }: Pick<PageProps<"/batches/[id]">, "par
                   <PartialNotice count={rows.length} where="in this batch" />
                   <MetricChart
                     metric={metric}
-                    points={toPoints(rows)}
+                    points={breakGaps(toPoints(rows))}
                     from={from}
                     to={to}
                     yeastRange={metric === "temperature_c" ? range : undefined}
