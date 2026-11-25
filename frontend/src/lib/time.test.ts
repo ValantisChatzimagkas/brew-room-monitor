@@ -1,6 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { chartTickFormat, formatAge, formatDuration, isStale, STALE_AFTER_MS } from "./time";
+import {
+  chartTickFormat,
+  formatAge,
+  formatDuration,
+  isStale,
+  localInputToUtc,
+  STALE_AFTER_MS,
+  toLocalInput,
+} from "./time";
 
 const now = new Date("2026-01-01T12:00:00Z");
 const ago = (ms: number) => new Date(now.getTime() - ms);
@@ -72,5 +80,41 @@ describe("chartTickFormat", () => {
     ["14 days", 14 * D, dayAndTime],
   ])("%s", (_, spanMs, expected) => {
     expect(chartTickFormat(spanMs)).toEqual(expected);
+  });
+});
+
+describe("local time input", () => {
+  // Winter UTC+2, summer UTC+3: pins the runtime zone so the expected UTC values hold on any machine.
+  beforeAll(() => {
+    vi.stubEnv("TZ", "Europe/Athens");
+    expect(new Date(2026, 0, 1).getTimezoneOffset()).toBe(-120);
+  });
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
+
+  describe("localInputToUtc", () => {
+    it.each([
+      ["winter", "2026-01-15T10:30", "2026-01-15T08:30:00.000Z"],
+      ["summer", "2026-07-15T10:30", "2026-07-15T07:30:00.000Z"],
+      ["seconds kept", "2026-01-15T10:30:15", "2026-01-15T08:30:15.000Z"],
+      ["empty", "", null],
+      ["date only", "2026-01-15", null],
+      ["with Z", "2026-01-15T10:30Z", null],
+      ["with an offset", "2026-01-15T10:30+02:00", null],
+      ["not a date", "not a date", null],
+    ])("%s", (_, value, expected) => {
+      expect(localInputToUtc(value)).toBe(expected);
+    });
+  });
+
+  describe("toLocalInput", () => {
+    it.each([
+      ["floored to the minute", "2026-01-15T08:30:59.900Z", "2026-01-15T10:30"],
+      ["zero-padded", "2026-03-05T07:04:00Z", "2026-03-05T09:04"],
+      ["summer", "2026-07-15T07:30:00Z", "2026-07-15T10:30"],
+    ])("%s", (_, iso, expected) => {
+      expect(toLocalInput(new Date(iso))).toBe(expected);
+    });
   });
 });

@@ -9,6 +9,7 @@ import {
   DEFAULT_GRANULARITY,
   DEFAULT_PERIOD,
   DEFAULT_RANGE,
+  endTimeError,
   GRANULARITIES,
   isIsolated,
   isPartial,
@@ -161,6 +162,24 @@ describe("batchWindow", () => {
     ],
   ] as const)("%s", (_, batch, period, expected) => {
     expect(batchWindow(batch, period, now)).toEqual(expected);
+  });
+});
+
+describe("endTimeError", () => {
+  const start = "2026-01-10T00:00:00Z";
+  const now = new Date("2026-01-20T00:00:00Z");
+  it.each([
+    ["inside the window", "2026-01-15T00:00:00.000Z", null],
+    ["at the start (voids the batch)", "2026-01-10T00:00:00.000Z", null],
+    ["at now", "2026-01-20T00:00:00.000Z", null],
+    ["with an offset", "2026-01-15T02:00:00+02:00", null],
+    ["before the start", "2026-01-09T23:59:59.999Z", "The end time is before the batch started."],
+    ["in the future", "2026-01-20T00:00:00.001Z", "The end time is in the future."],
+    ["no time zone", "2026-01-15T00:00:00", "Enter a valid end time."],
+    ["empty", "", "Enter a valid end time."],
+    ["garbage", "garbage", "Enter a valid end time."],
+  ])("%s", (_, endedAt, expected) => {
+    expect(endTimeError(endedAt, start, now)).toBe(expected);
   });
 });
 

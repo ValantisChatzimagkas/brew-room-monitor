@@ -23,7 +23,7 @@ Sensors (ESP32 now, in-fermenter capsules later) push readings → FastAPI store
 - **Time:** store and transmit timezone-aware UTC only. Convert to local time in the UI, nowhere else.
 - **Units live in the name** (`temperature_c`, `humidity_pct`). Never store a bare `temperature`.
 - **Secrets:** env vars only, never committed, never in `NEXT_PUBLIC_*`, never logged or echoed in responses/errors. Devices get their own per-device token.
-- **Frontend pages require a signed-in user** and call the API with that user's token, so the backend scopes every row to them. Every Server Action is a public POST endpoint: there are none that mutate; add one only if it re-checks the session and validates its own input.
+- **Frontend pages require a signed-in user** and call the API with that user's token, so the backend scopes every row to them. Every Server Action is a public POST endpoint: a mutating one (pattern: `frontend/src/app/batches/[id]/actions.ts`) re-checks the session through `getApi()` and validates its own input, bound arguments included.
 - **Device API is versioned** (`/api/v1`). Flashed devices can't be updated easily: never make a breaking change to `POST /api/v1/readings`; add `/v2` instead.
 - **Schema changes go through Alembic.** No `create_all` anywhere, tests included. No Postgres native enums (use strings + Python `StrEnum`).
 
