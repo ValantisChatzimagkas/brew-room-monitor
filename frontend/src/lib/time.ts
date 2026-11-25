@@ -18,3 +18,9 @@ export function isStale(latest: readonly { recorded_at: string }[], now: Date): 
   const newest = Math.max(...latest.map((r) => new Date(r.recorded_at).getTime()));
   return now.getTime() - newest > STALE_AFTER_MS;
 }
+
+/** Chart ticks show the time of day; above a day they add the date, since times then repeat across days. */
+export function chartTickFormat(spanMs: number): Intl.DateTimeFormatOptions {
+  if (spanMs <= DAY_MS) return { hour: "2-digit", minute: "2-digit" };
+  return { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" };
+}
