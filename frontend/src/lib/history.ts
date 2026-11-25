@@ -2,7 +2,15 @@ import type { BucketSize, ReadingBucket } from "@/lib/api/client";
 
 export const RANGES = ["6h", "24h"] as const;
 type Range = (typeof RANGES)[number];
-const DEFAULT_RANGE: Range = "24h";
+export const DEFAULT_RANGE: Range = "24h";
+
+export const BATCH_PERIODS = ["24h", "3d", "7d", "whole"] as const;
+export type BatchPeriod = (typeof BATCH_PERIODS)[number];
+export const DEFAULT_PERIOD: BatchPeriod = "whole";
+
+export const GRANULARITIES = ["auto", "15m", "1h", "6h"] as const satisfies readonly ("auto" | BucketSize)[];
+export type Granularity = (typeof GRANULARITIES)[number];
+export const DEFAULT_GRANULARITY: Granularity = "auto";
 
 /** API cap on `GET /readings` (`le=5000` in backend/app/routers/readings.py). */
 export const READINGS_LIMIT = 5000;
@@ -12,7 +20,8 @@ export const MAX_BUCKETS = 5000;
 const AUTO_MAX_POINTS = 500;
 
 const HOUR_MS = 60 * 60 * 1000;
-const RANGE_HOURS: Record<Range, number> = { "6h": 6, "24h": 24 };
+type Hours = "6h" | "24h" | "3d" | "7d";
+const RANGE_HOURS: Record<Hours, number> = { "6h": 6, "24h": 24, "3d": 72, "7d": 168 };
 const MINUTE_MS = 60 * 1000;
 const BUCKET_MS: Record<BucketSize, number> = {
   "5m": 5 * MINUTE_MS,
@@ -36,11 +45,16 @@ export type ChartGap = { time: number; value: null };
 /** A bucket's average, with its min-max as `range`. */
 export type BucketPoint = ChartPoint & { range: [number, number] };
 
-export function parseRange(raw: string | string[] | undefined): Range {
-  return RANGES.find((r) => r === raw) ?? DEFAULT_RANGE;
+/** An exact match among `choices`, else `fallback`. */
+export function parseRange<const T extends string>(
+  raw: string | string[] | undefined,
+  choices: readonly T[],
+  fallback: T,
+): T {
+  return choices.find((c) => c === raw) ?? fallback;
 }
 
-export function rangeSince(range: Range, now: Date): Date {
+export function rangeSince(range: Hours, now: Date): Date {
   return new Date(now.getTime() - RANGE_HOURS[range] * HOUR_MS);
 }
 
@@ -77,6 +91,30 @@ function bucketCount(spanMs: number, bucketMs: number): number {
 export function autoBucket(spanMs: number): BucketSize {
   const fits = BUCKET_SIZES.find((size) => bucketCount(spanMs, BUCKET_MS[size]) <= AUTO_MAX_POINTS);
   return fits ?? BUCKET_SIZES[BUCKET_SIZES.length - 1];
+}
+
+/**
+ * A batch period's window: anchored to the batch's end (now while it runs), so "24h" of an ended batch is
+ * its last day, and clipped to its start.
+ */
+export function batchWindow(
+  batch: { started_at: string; ended_at: string | null },
+  period: BatchPeriod,
+  now: Date,
+): { from: number; to: number } {
+  const start = Date.parse(batch.started_at);
+  const to = batch.ended_at === null ? now.getTime() : Date.parse(batch.ended_at);
+  if (period === "whole") return { from: start, to };
+  return { from: Math.max(start, rangeSince(period, new Date(to)).getTime()), to };
+}
+
+/**
+ * A manual granularity if the API would accept it, else Auto. One bucket of headroom under the cap: the
+ * backend measures an open batch's window a moment after this render does.
+ */
+export function pickBucket(granularity: Granularity, spanMs: number): BucketSize {
+  if (granularity !== "auto" && bucketCount(spanMs, BUCKET_MS[granularity]) + 1 <= MAX_BUCKETS) return granularity;
+  return autoBucket(spanMs);
 }
 
 /** Rows come newest first, so a capped query has dropped the oldest rows in the range. */

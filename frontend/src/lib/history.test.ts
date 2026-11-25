@@ -2,12 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import {
   autoBucket,
+  BATCH_PERIODS,
+  batchWindow,
   breakGaps,
   type ChartPoint,
+  DEFAULT_GRANULARITY,
+  DEFAULT_PERIOD,
+  DEFAULT_RANGE,
+  GRANULARITIES,
   isIsolated,
   isPartial,
   parseId,
   parseRange,
+  pickBucket,
+  RANGES,
   rangeSince,
   toBucketPoints,
   toPoints,
@@ -23,8 +31,25 @@ describe("parseRange", () => {
     ["6H", "24h"],
     [["6h", "24h"], "24h"],
     ["constructor", "24h"],
-  ])("%j -> %s", (raw, expected) => {
-    expect(parseRange(raw)).toBe(expected);
+  ])("range %j -> %s", (raw, expected) => {
+    expect(parseRange(raw, RANGES, DEFAULT_RANGE)).toBe(expected);
+  });
+
+  it.each([
+    ["3d", "3d"],
+    [undefined, "whole"],
+    ["30d", "whole"],
+    ["Whole", "whole"],
+  ])("period %j -> %s", (raw, expected) => {
+    expect(parseRange(raw, BATCH_PERIODS, DEFAULT_PERIOD)).toBe(expected);
+  });
+
+  it.each([
+    ["1h", "1h"],
+    ["5m", "auto"], // a valid bucket size, but not a preset
+    [["1h", "6h"], "auto"],
+  ])("granularity %j -> %s", (raw, expected) => {
+    expect(parseRange(raw, GRANULARITIES, DEFAULT_GRANULARITY)).toBe(expected);
   });
 });
 
@@ -34,6 +59,8 @@ describe("rangeSince", () => {
   it.each([
     ["6h", "2026-01-01T06:00:00.000Z"],
     ["24h", "2025-12-31T12:00:00.000Z"],
+    ["3d", "2025-12-29T12:00:00.000Z"],
+    ["7d", "2025-12-25T12:00:00.000Z"],
   ] as const)("%s", (range, expected) => {
     expect(rangeSince(range, now).toISOString()).toBe(expected);
   });
@@ -103,6 +130,52 @@ describe("autoBucket", () => {
     ["1095d: nothing fits, the largest", 1095 * DAY, "1d"],
   ])("%s -> %s", (_, spanMs, expected) => {
     expect(autoBucket(spanMs)).toBe(expected);
+  });
+});
+
+describe("batchWindow", () => {
+  const now = new Date("2026-01-10T00:00:00Z");
+  const open = { started_at: "2026-01-01T00:00:00Z", ended_at: null };
+  const window = (from: string, to: string) => ({ from: Date.parse(from), to: Date.parse(to) });
+  it.each([
+    ["whole, open", open, "whole", window("2026-01-01T00:00:00Z", "2026-01-10T00:00:00Z")],
+    ["24h, open", open, "24h", window("2026-01-09T00:00:00Z", "2026-01-10T00:00:00Z")],
+    ["7d, open", open, "7d", window("2026-01-03T00:00:00Z", "2026-01-10T00:00:00Z")],
+    [
+      "24h, ended: anchored to the end, not now",
+      { started_at: "2026-01-01T00:00:00Z", ended_at: "2026-01-05T00:00:00Z" },
+      "24h",
+      window("2026-01-04T00:00:00Z", "2026-01-05T00:00:00Z"),
+    ],
+    [
+      "3d, clipped to the start",
+      { started_at: "2026-01-09T12:00:00Z", ended_at: null },
+      "3d",
+      window("2026-01-09T12:00:00Z", "2026-01-10T00:00:00Z"),
+    ],
+    [
+      "zero-length batch",
+      { started_at: "2026-01-05T00:00:00Z", ended_at: "2026-01-05T00:00:00Z" },
+      "24h",
+      window("2026-01-05T00:00:00Z", "2026-01-05T00:00:00Z"),
+    ],
+  ] as const)("%s", (_, batch, period, expected) => {
+    expect(batchWindow(batch, period, now)).toEqual(expected);
+  });
+});
+
+describe("pickBucket", () => {
+  const MIN = 60 * 1000;
+  const DAY = 24 * 60 * MIN;
+  it.each([
+    ["auto over 7d", "auto", 7 * DAY, "30m"],
+    ["15m over 24h", "15m", DAY, "15m"],
+    ["6h over 28d", "6h", 28 * DAY, "6h"],
+    ["15m at the cap (count + 1 = 5000)", "15m", 4998 * 15 * MIN, "15m"],
+    ["15m one past the cap falls back to auto", "15m", 4998 * 15 * MIN + 1, autoBucket(4998 * 15 * MIN + 1)],
+    ["15m over 60d falls back to auto", "15m", 60 * DAY, "3h"],
+  ] as const)("%s", (_, granularity, spanMs, expected) => {
+    expect(pickBucket(granularity, spanMs)).toBe(expected);
   });
 });
 
