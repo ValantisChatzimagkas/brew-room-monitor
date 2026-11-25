@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { yeastPosition, yeastSplit } from "./yeast";
+import { formatValue } from "./metrics";
+import { formatDuration } from "./time";
+import { noteText, yeastPosition, yeastSplit } from "./yeast";
 
 describe("yeastSplit", () => {
   it.each([
@@ -30,5 +32,22 @@ describe("yeastPosition", () => {
     [{ min: 20, max: 20 }, 20.1, "above"],
   ])("%j, %d -> %s", (range, value, expected) => {
     expect(yeastPosition(value, range)).toBe(expected);
+  });
+});
+
+describe("noteText", () => {
+  const range = { min: 18, max: 22 };
+  const temp = (value: number) => formatValue("temperature_c", value);
+  it.each([
+    ["early_hot", 21600, 5, [formatDuration(21600), temp(27)], true],
+    ["early_warm", 21600, null, [formatDuration(21600), temp(22)], true],
+    ["late_cold", 86400, null, [formatDuration(86400), temp(18)], true],
+    ["sharp_drop", 43200, 4.5, [formatDuration(43200), temp(4.5)], true],
+    ["late_warm", 3600, null, [formatDuration(3600), temp(22)], true],
+    ["in_range", 7200, null, [temp(18), temp(22)], false],
+  ] as const)("%s", (code, duration_s, delta_c, numbers, hedged) => {
+    const text = noteText({ code, duration_s, delta_c }, range);
+    for (const n of numbers) expect(text).toContain(n);
+    expect(/\bmay\b/.test(text)).toBe(hedged);
   });
 });
