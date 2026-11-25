@@ -12,6 +12,7 @@ import type { components, paths } from "./schema";
 export type Device = components["schemas"]["DevicePublic"];
 export type Reading = components["schemas"]["ReadingPublic"];
 export type Metric = components["schemas"]["Metric"];
+export type BatchDetail = components["schemas"]["BatchDetail"];
 
 // A 401 this soon after sign-in means the backend rejects tokens Auth0 just issued (wrong AUTH_ISSUER or
 // AUTH_AUDIENCE), not that the session aged out. Redirecting would loop through Auth0 silently.
