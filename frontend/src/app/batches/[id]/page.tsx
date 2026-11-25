@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
+import { BatchNotes } from "@/components/batch-notes";
 import { BatchSummaryTable } from "@/components/batch-summary-table";
 import { BatchYeast } from "@/components/batch-yeast";
 import { MetricChart } from "@/components/metric-chart";
@@ -104,6 +105,7 @@ async function BatchDetailView({
         </p>
         <div className="mt-4">
           <BatchYeast batch={batch} />
+          {range && <BatchNotes notes={batch.notes} range={range} ambient={device?.kind === "ambient"} />}
         </div>
         <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
           <nav aria-label="Period" className="flex gap-2">

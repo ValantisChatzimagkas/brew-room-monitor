@@ -14,6 +14,7 @@ export type Reading = components["schemas"]["ReadingPublic"];
 export type Metric = components["schemas"]["Metric"];
 export type BatchDetail = components["schemas"]["BatchDetail"];
 export type YeastFit = components["schemas"]["YeastFit"];
+export type TemperatureNote = components["schemas"]["TemperatureNote"];
 export type ReadingBucket = components["schemas"]["ReadingBucket"];
 export type BucketSize = components["schemas"]["BucketSize"];
 

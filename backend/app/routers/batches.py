@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import func
+from sqlalchemy import ColumnElement, FrameClause, FrameClauseType, func, or_
 from sqlalchemy import select as select_columns  # sqlmodel's `select` types at most 4 columns
 from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlmodel import Session, col, select
@@ -18,11 +18,20 @@ from app.models import (
     Metric,
     MetricSummary,
     Reading,
+    TemperatureNote,
     User,
     YeastFit,
     utcnow,
 )
 from app.services.batches import batch_readings_filter
+from app.services.insights import (
+    EARLY_HOT_MARGIN_C,
+    EARLY_PHASE,
+    LATE_WARM_FROM,
+    SHARP_DROP_WINDOW,
+    TemperatureStats,
+    temperature_notes,
+)
 
 router = APIRouter(prefix="/batches", tags=["batches"])
 
@@ -56,10 +65,12 @@ def list_batches(
 @router.get("/{batch_id}")
 def get_batch(batch_id: int, session: SessionDep, user: UserDep) -> BatchDetail:
     batch = get_batch_or_404(session, batch_id, user)
+    yeast_fit, notes = _yeast_insights(session, batch)
     return BatchDetail(
         **BatchPublic.model_validate(batch).model_dump(),
         metrics=_summarize_metrics(session, batch),
-        yeast_fit=_fit_yeast_range(session, batch),
+        yeast_fit=yeast_fit,
+        notes=notes,
     )
 
 
@@ -152,35 +163,65 @@ def _summarize_metrics(session: Session, batch: Batch) -> list[MetricSummary]:
     ]
 
 
-def _fit_yeast_range(session: Session, batch: Batch) -> YeastFit | None:
+def _yeast_insights(
+    session: Session, batch: Batch
+) -> tuple[YeastFit | None, list[TemperatureNote]]:
     low, high = batch.yeast_min_temperature_c, batch.yeast_max_temperature_c
     if low is None or high is None:
-        return None
+        return None, []
     recorded_at = col(Reading.recorded_at)
     # The window runs after WHERE, so a reading outside the batch is never a neighbour. The newest
     # has no next reading, so lead() defaults to its own time and it spans 0 s (a NULL would not do:
     # LEAST ignores NULLs and would give it the cap). Ties are ordered by id, as in
     # _summarize_metrics.
     next_at = func.lead(recorded_at, 1, recorded_at).over(order_by=(recorded_at, col(Reading.id)))
+    # Highest reading in the preceding window, that reading's own time included (RANGE is
+    # inclusive at both ends), minus this one: how far it fell.
+    window_max = func.max(col(Reading.value)).over(
+        order_by=recorded_at,
+        range_=FrameClause(
+            SHARP_DROP_WINDOW, None, FrameClauseType.PRECEDING, FrameClauseType.CURRENT
+        ),
+    )
     spans = (
         select_columns(
             col(Reading.value).label("value"),
+            recorded_at.label("recorded_at"),
             func.least(
                 func.extract("epoch", next_at - recorded_at), _READING_SPAN_CAP.total_seconds()
             ).label("span_s"),
+            (window_max - col(Reading.value)).label("drop_c"),
         )
         .where(*batch_readings_filter(batch), col(Reading.metric) == Metric.TEMPERATURE_C)
         .subquery()
     )
-    value, span_s = spans.c.value, spans.c.span_s
+    value, span_s, at = spans.c.value, spans.c.span_s, spans.c.recorded_at
+    early = at < batch.started_at + EARLY_PHASE
+    late = at >= batch.started_at + EARLY_PHASE
+    late_warm = at >= batch.started_at + LATE_WARM_FROM
+
+    def seconds(*where: ColumnElement[bool]) -> ColumnElement[float]:
+        return func.coalesce(func.sum(span_s).filter(*where), 0)
+
     # No GROUP BY, so a window without temperature readings still gives one row of zeros.
     query = select_columns(
-        func.coalesce(func.sum(span_s).filter(value < low), 0),
-        func.coalesce(func.sum(span_s).filter(value.between(low, high)), 0),  # bounds are inside
-        func.coalesce(func.sum(span_s).filter(value > high), 0),
+        func.count().label("reading_count"),
+        func.count().filter(or_(value < low, value > high)).label("outside_count"),
+        seconds(value < low).label("below_s"),
+        seconds(value.between(low, high)).label("inside_s"),  # bounds are inside
+        seconds(value > high).label("above_s"),
+        seconds(value > high, early).label("early_above_s"),
+        seconds(value >= high + EARLY_HOT_MARGIN_C, early).label("early_hot_s"),
+        seconds(value < low, late).label("late_below_s"),
+        func.count().filter(value > high, late_warm).label("late_above_count"),
+        seconds(value > high, late_warm).label("late_above_s"),
+        func.coalesce(func.max(spans.c.drop_c), 0).label("max_drop_c"),
     )
-    below, inside, above = session.execute(query).one()
-    return YeastFit(below_s=round(below), inside_s=round(inside), above_s=round(above))
+    stats = TemperatureStats(**session.execute(query).one()._mapping)
+    fit = YeastFit(
+        below_s=round(stats.below_s), inside_s=round(stats.inside_s), above_s=round(stats.above_s)
+    )
+    return fit, temperature_notes(stats)
 
 
 def _ensure_device_exists(session: Session, device_id: int, user: User) -> None:
