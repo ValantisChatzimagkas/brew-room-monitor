@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { type BatchDetail, getApi } from "@/lib/api/client";
 import { isPartial, parseDeviceId, parseRange, RANGES, rangeSince, READINGS_LIMIT, toPoints } from "@/lib/history";
 import { formatValue, inMetricOrder, METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
-import { formatAge } from "@/lib/time";
+import { formatAge, formatDuration } from "@/lib/time";
 import { yeastSplit } from "@/lib/yeast";
 
 const BATCHES_LIMIT = 10;
@@ -172,7 +172,7 @@ function BatchCard({ batch, now }: { batch: BatchDetail; now: Date }) {
                 <span key={item.label}>
                   {i > 0 && " · "}
                   <span className={item.flagged ? "font-medium text-out-of-range" : undefined}>
-                    {item.count} {item.label}
+                    {formatDuration(item.seconds)} {item.label}
                   </span>
                 </span>
               ))}
