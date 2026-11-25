@@ -957,6 +957,13 @@
                 "type": "null"
               }
             ]
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/TemperatureNote"
+            },
+            "type": "array",
+            "title": "Notes"
           }
         },
         "type": "object",
@@ -967,7 +974,8 @@
           "started_at",
           "ended_at",
           "metrics",
-          "yeast_fit"
+          "yeast_fit",
+          "notes"
         ],
         "title": "BatchDetail"
       },
@@ -1455,6 +1463,18 @@
         ],
         "title": "MetricSummary"
       },
+      "NoteCode": {
+        "type": "string",
+        "enum": [
+          "early_warm",
+          "early_hot",
+          "late_cold",
+          "sharp_drop",
+          "late_warm",
+          "in_range"
+        ],
+        "title": "NoteCode"
+      },
       "ReadingBatch": {
         "properties": {
           "readings": {
@@ -1529,6 +1549,36 @@
           "recorded_at"
         ],
         "title": "ReadingPublic"
+      },
+      "TemperatureNote": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/NoteCode"
+          },
+          "duration_s": {
+            "type": "integer",
+            "title": "Duration S"
+          },
+          "delta_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta C"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "duration_s",
+          "delta_c"
+        ],
+        "title": "TemperatureNote",
+        "description": "One finding about a batch's temperature_c history against its yeast range.\n\nOnly the code and its numbers: the wording lives in the frontend. Rules and thresholds are in\n`app/services/insights.py`."
       },
       "UserPublic": {
         "properties": {

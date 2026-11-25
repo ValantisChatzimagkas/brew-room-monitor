@@ -532,6 +532,142 @@ def test_yeast_fit_edge_cases(
     assert len(detail["metrics"]) == len({m for m, _, _ in readings})  # the summary is unaffected
 
 
+def _hourly(start_h: float, *values: float) -> list[tuple[str, float, datetime | None]]:
+    """temperature_c readings one hour apart from JAN_10 + start_h, so each but the newest spans
+    exactly the 1 h cap."""
+    return [
+        ("temperature_c", v, JAN_10 + timedelta(hours=start_h + i)) for i, v in enumerate(values)
+    ]
+
+
+def _note(code: str, duration_s: int, delta_c: float | None = None) -> dict[str, Any]:
+    delta = None if delta_c is None else pytest.approx(delta_c)
+    return {"code": code, "duration_s": duration_s, "delta_c": delta}
+
+
+H = timedelta(hours=1)
+
+
+# Range 18–22 unless the row says otherwise. A trailing reading closes the previous span; after
+# hot readings it stays within 4 °C of them, so sharp_drop doesn't fire as a side effect.
+@pytest.mark.parametrize(
+    ("readings", "yeast_range", "expected"),
+    [
+        pytest.param(_hourly(0, 20, 20), {}, [], id="no-range"),
+        pytest.param([], RANGE_18_22, [], id="no-readings"),
+        pytest.param([("specific_gravity", 1.05, JAN_10)], RANGE_18_22, [], id="gravity-only"),
+        pytest.param(_hourly(0, 20, 21, 19), RANGE_18_22, [_note("in_range", 7200)], id="in-range"),
+        pytest.param(
+            _hourly(0, 18, 22, 20),
+            RANGE_18_22,
+            [_note("in_range", 7200)],
+            id="in-range-on-bounds",
+        ),
+        pytest.param(_hourly(0, 20), RANGE_18_22, [_note("in_range", 0)], id="single-reading"),
+        pytest.param(_hourly(0, 23, 20), RANGE_18_22, [], id="brief-excursion-no-note"),
+        pytest.param(_hourly(0, 20, 23), RANGE_18_22, [], id="newest-outside-not-in-range"),
+        pytest.param(
+            _hourly(0, *[23] * 6, 20),
+            RANGE_18_22,
+            [_note("early_warm", 21600)],
+            id="early-warm-at-threshold",
+        ),
+        pytest.param(_hourly(0, *[23] * 5, 20), RANGE_18_22, [], id="early-warm-just-short"),
+        pytest.param(
+            _hourly(0, 23, 23, 23, 20, 23, 23, 23, 20),
+            RANGE_18_22,
+            [_note("early_warm", 21600)],
+            id="early-warm-cumulative",
+        ),
+        pytest.param(
+            _hourly(66, *[23] * 6, 20),  # last warm reading at 71 h
+            RANGE_18_22,
+            [_note("early_warm", 21600)],
+            id="early-warm-phase-edge-in",
+        ),
+        pytest.param(
+            _hourly(67, *[23] * 6, 20),  # last warm reading at 72 h
+            RANGE_18_22,
+            [],
+            id="early-warm-phase-edge-out",
+        ),
+        pytest.param(
+            _hourly(0, 27, 27, 23.5),
+            RANGE_18_22,
+            [_note("early_hot", 7200, 5.0)],
+            id="early-hot-at-threshold",
+        ),
+        pytest.param(_hourly(0, 26.5, 26.5, 23), RANGE_18_22, [], id="early-hot-margin-short"),
+        pytest.param(_hourly(0, 27, 23.5), RANGE_18_22, [], id="early-hot-duration-short"),
+        pytest.param(
+            _hourly(0, *[27] * 6, 23.5),
+            RANGE_18_22,
+            [_note("early_hot", 21600, 5.0)],
+            id="early-hot-replaces-warm",
+        ),
+        pytest.param(
+            _hourly(72, *[17] * 24, 20),
+            RANGE_18_22,
+            [_note("late_cold", 86400)],
+            id="late-cold-at-threshold",
+        ),
+        pytest.param(_hourly(72, *[17] * 23, 20), RANGE_18_22, [], id="late-cold-just-short"),
+        pytest.param(
+            _hourly(47, *[17] * 24, 20),  # last cold reading at 70 h
+            RANGE_18_22,
+            [],
+            id="cold-before-72h-ignored",
+        ),
+        pytest.param(
+            _hourly(0, 22, *[20] * 11, 18),  # 18 exactly 12 h after 22
+            RANGE_18_22,
+            [_note("sharp_drop", 43200, 4.0)],
+            id="sharp-drop-at-12h",
+        ),
+        pytest.param(
+            [("temperature_c", 22, JAN_10), ("temperature_c", 18, JAN_10 + 12 * H + MIN)],
+            RANGE_18_22,
+            [_note("in_range", 3600)],
+            id="drop-outside-window",
+        ),
+        pytest.param(
+            _hourly(0, 22.0, 18.5), RANGE_18_22, [_note("in_range", 3600)], id="drop-just-short"
+        ),
+        pytest.param(
+            _hourly(0, 18, 22), RANGE_18_22, [_note("in_range", 3600)], id="rise-is-not-a-drop"
+        ),
+        pytest.param(_hourly(96, 23, 20), RANGE_18_22, [_note("late_warm", 3600)], id="late-warm"),
+        pytest.param(
+            _hourly(96, 20, 23),
+            RANGE_18_22,
+            [_note("late_warm", 0)],
+            id="late-warm-newest-zero-span",
+        ),
+        pytest.param(_hourly(95, 23, 20), RANGE_18_22, [], id="warm-72-96h-no-note"),
+        pytest.param(
+            _hourly(0, 27, 27, 23.5) + _hourly(72, *[17] * 24, 20) + _hourly(120, 23, 20),
+            RANGE_18_22,
+            [_note("early_hot", 7200, 5.0), _note("late_cold", 86400), _note("late_warm", 3600)],
+            id="several-notes-ordered",
+        ),
+    ],
+)
+def test_temperature_notes(
+    client: TestClient,
+    user_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+    readings: list[tuple[str, float, datetime | None]],
+    yeast_range: dict[str, float],
+    expected: list[dict[str, Any]],
+) -> None:
+    device_id, headers = make_device("vessel-a")
+    if readings:
+        _ingest(client, headers, readings)
+    batch_id = make_batch(device_id, JAN_10, JAN_20, **yeast_range)
+    assert _get(client, user_headers, batch_id)["notes"] == expected
+
+
 def test_get_unknown_batch_is_404(client: TestClient, user_headers: dict[str, str]) -> None:
     assert client.get("/api/v1/batches/999", headers=user_headers).status_code == 404
 

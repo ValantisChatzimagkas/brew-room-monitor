@@ -241,9 +241,31 @@ class YeastFit(SQLModel):
     above_s: int
 
 
+class NoteCode(StrEnum):
+    EARLY_WARM = "early_warm"
+    EARLY_HOT = "early_hot"
+    LATE_COLD = "late_cold"
+    SHARP_DROP = "sharp_drop"
+    LATE_WARM = "late_warm"
+    IN_RANGE = "in_range"
+
+
+class TemperatureNote(SQLModel):
+    """One finding about a batch's temperature_c history against its yeast range.
+
+    Only the code and its numbers: the wording lives in the frontend. Rules and thresholds are in
+    `app/services/insights.py`.
+    """
+
+    code: NoteCode
+    duration_s: int
+    delta_c: float | None  # no default, so OpenAPI marks it required (and nullable)
+
+
 class BatchDetail(BatchPublic):
     metrics: list[MetricSummary]  # one per metric with a reading in the window, by metric name
     yeast_fit: YeastFit | None  # None when the batch has no yeast range
+    notes: list[TemperatureNote]  # empty without a yeast range or temperature readings
 
 
 # --- User -----------------------------------------------------------------

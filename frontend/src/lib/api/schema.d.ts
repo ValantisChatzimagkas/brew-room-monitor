@@ -227,6 +227,8 @@ export interface components {
             /** Metrics */
             metrics: components["schemas"]["MetricSummary"][];
             yeast_fit: components["schemas"]["YeastFit"] | null;
+            /** Notes */
+            notes: components["schemas"]["TemperatureNote"][];
         };
         /** BatchPublic */
         BatchPublic: {
@@ -370,6 +372,11 @@ export interface components {
              */
             latest_recorded_at: string;
         };
+        /**
+         * NoteCode
+         * @enum {string}
+         */
+        NoteCode: "early_warm" | "early_hot" | "late_cold" | "sharp_drop" | "late_warm" | "in_range";
         /** ReadingBatch */
         ReadingBatch: {
             /** Readings */
@@ -395,6 +402,20 @@ export interface components {
              * Format: date-time
              */
             recorded_at: string;
+        };
+        /**
+         * TemperatureNote
+         * @description One finding about a batch's temperature_c history against its yeast range.
+         *
+         *     Only the code and its numbers: the wording lives in the frontend. Rules and thresholds are in
+         *     `app/services/insights.py`.
+         */
+        TemperatureNote: {
+            code: components["schemas"]["NoteCode"];
+            /** Duration S */
+            duration_s: number;
+            /** Delta C */
+            delta_c: number | null;
         };
         /** UserPublic */
         UserPublic: {
