@@ -1,17 +1,14 @@
 ---
 name: linear-issue
-description: Create or edit a Linear issue for this repo using the project template. Use whenever the user asks to create, file, open, log or write up an issue, ticket, task or bug, or to turn something from the conversation into one.
+description: Repo conventions for Linear issues: target project, template, labels. Use whenever the user asks to create, file, open, log or write up an issue, ticket, task or bug, or to turn something from the conversation into one.
 ---
 
 # Linear issue
 
 Every issue goes to the Linear project **Ambient Data Brewing Monitor**
-(configure the workspace in your Linear MCP). Look up its team and the label IDs through the Linear MCP; don't guess them.
+(https://linear.app/tcv-coding-space/project/ambient-data-brewing-monitor-2806fdd23b39), team `Solo` (key `SOL`). Look up the label IDs through the Linear MCP; don't guess them.
 
-## Steps
-1. Search the project for an open issue covering the same thing. If one exists, update it or ask; don't create a duplicate.
-2. Fill the template below. Create the issue directly; ask first only if the type, area or "Done when" is genuinely unclear.
-3. Reply with the issue ID and link, nothing else.
+How to investigate, challenge and split a request lives in the personal `writing-tickets` skill. Without it: search the project for a duplicate, fill the template below, create the issue, reply with ID and link.
 
 ## Template
 
@@ -26,16 +23,19 @@ Every issue goes to the Linear project **Ambient Data Brewing Monitor**
 - [ ] Observable outcome, checkable from outside (API response, rendered page, device behaviour)
 
 ## Notes
-Pointers only: file paths, links, constraints, what's out of scope.
+Pointers only: where to start (files, endpoints, docs), constraints, assumptions, what's out of scope.
 ```
 - `## Why` and `## Done when` are required. Omit `## Notes` when empty.
 - "Done when" items are the tests and the definition of done: each one checkable through a boundary (see "Tests" in `CLAUDE.md`), not an implementation step.
+- A ticket that adds a route, accepts device input or changes insight logic lists the matching "Must test" cases from `CLAUDE.md` (auth, input bounds, status codes, edge cases) in "Done when".
+- Doc that must change with it (`firmware/README.md`, `ARCHITECTURE.md`): name it in Notes, not as a "Done when" item.
+- Blocked-by goes in Linear's native relations, never in the description.
 - Link, don't copy: name the file, endpoint or doc instead of pasting it.
 
 ## Fields
-- **Labels:** exactly one per group.
-  - Type: `Bug` (→ `fix:`), `Feature` (→ `feat:`), `Chore` (refactor, deps, CI, tooling, docs → `refactor:` / `chore:`).
-  - Area: `Backend`, `Frontend`, `Firmware`, `Infra`. Cross-cutting work takes the area where the change starts (a schema change is `Backend`).
+- **Type label** (exactly one), with the Conventional Commit it maps to: `Bug` → `fix:`, `Feature` → `feat:`, `Improvement` (refactor, deps, CI, tooling, docs, perf) → `refactor:` / `chore:` / `perf:` / `docs:`.
+- **Area label** (at most one): `backend`, `frontend`, `devops` (infra, CI, deploys), `data_ops` (insights, analysis), `Misc` (docs, settings). Cross-cutting work takes the area where the change starts (a schema change is `backend`). Firmware has no label yet: omit.
+- **Milestone** (exactly one): the work package the issue belongs to. List them with `list_milestones` on the project; they are numbered in the order to work on them. If none fits, ask before creating a new milestone.
 - **Priority, estimate, assignee:** only if the user gives one.
 
 ## Never
