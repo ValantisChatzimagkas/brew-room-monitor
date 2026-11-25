@@ -5,6 +5,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.conftest import post_readings
+
 MakeDevice = Callable[[str], tuple[int, dict[str, str]]]
 MakeBatch = Callable[..., int]
 
@@ -259,19 +261,6 @@ def test_yeast_range_round_trips(
         assert (res.status_code, yeast(res.json())[1:]) == (200, (low, high))
 
 
-def _ingest(
-    client: TestClient,
-    headers: dict[str, str],
-    readings: list[tuple[str, float, datetime | None]],
-) -> None:
-    body = [
-        {"metric": m, "value": v, **({"recorded_at": at.isoformat()} if at else {})}
-        for m, v, at in readings
-    ]
-    res = client.post("/api/v1/readings", json={"readings": body}, headers=headers)
-    assert res.status_code == 201
-
-
 def _get(client: TestClient, headers: dict[str, str], batch_id: int) -> dict[str, Any]:
     res = client.get(f"/api/v1/batches/{batch_id}", headers=headers)
     assert res.status_code == 200
@@ -287,7 +276,7 @@ def test_summary_covers_only_the_batch_window(
 ) -> None:
     a_id, a_headers = make_device("vessel-a")
     _, b_headers = make_device("vessel-b")
-    _ingest(
+    post_readings(
         client,
         a_headers,
         [
@@ -301,7 +290,7 @@ def test_summary_covers_only_the_batch_window(
             ("specific_gravity", 1.020, JAN_15),
         ],
     )
-    _ingest(client, b_headers, [("temperature_c", 50, JAN_15)])  # another device
+    post_readings(client, b_headers, [("temperature_c", 50, JAN_15)])  # another device
     first = make_batch(a_id, JAN_10, JAN_20)
     second = make_batch(a_id, JAN_20)
 
@@ -361,7 +350,7 @@ def test_summary_of_a_batch_without_readings_is_empty(
 ) -> None:
     device_id, headers = make_device("vessel-a")
     if readings:
-        _ingest(client, headers, readings)
+        post_readings(client, headers, readings)
     batch_id = make_batch(device_id, started_at, ended_at)
     assert _get(client, user_headers, batch_id)["metrics"] == []
 
@@ -373,7 +362,7 @@ def test_summary_of_a_single_reading(
     make_batch: MakeBatch,
 ) -> None:
     device_id, headers = make_device("vessel-a")
-    _ingest(client, headers, [("specific_gravity", 1.04, JAN_10)])
+    post_readings(client, headers, [("specific_gravity", 1.04, JAN_10)])
     batch_id = make_batch(device_id, JAN_5, JAN_15)
 
     (summary,) = _get(client, user_headers, batch_id)["metrics"]
@@ -398,7 +387,7 @@ def test_open_batch_summary_runs_to_now(
     batch_id = make_batch(device_id, JAN_1)
     ahead = datetime.now(UTC) + timedelta(minutes=3)  # device clock skew, still accepted
     # Clockless readings share one server-stamped recorded_at: the later insert is "latest".
-    _ingest(
+    post_readings(
         client,
         headers,
         [("temperature_c", 10, None), ("temperature_c", 20, None), ("temperature_c", 99, ahead)],
@@ -424,7 +413,7 @@ def test_yeast_fit_times_readings_against_the_range(
         ("temperature_c", value, JAN_10 + timedelta(minutes=10 * i))
         for i, value in enumerate((17.9, 18, 20, 22, 22.1, 20))
     ]
-    _ingest(
+    post_readings(
         client,
         a_headers,
         [
@@ -434,7 +423,7 @@ def test_yeast_fit_times_readings_against_the_range(
             ("specific_gravity", 1.05, JAN_12),  # not a temperature
         ],
     )
-    _ingest(client, b_headers, [("temperature_c", 30, JAN_12)])  # another device
+    post_readings(client, b_headers, [("temperature_c", 30, JAN_12)])  # another device
     batch_id = make_batch(
         a_id, JAN_10, JAN_20, yeast_min_temperature_c=18, yeast_max_temperature_c=22
     )
@@ -525,7 +514,7 @@ def test_yeast_fit_edge_cases(
 ) -> None:
     device_id, headers = make_device("vessel-a")
     if readings:
-        _ingest(client, headers, readings)
+        post_readings(client, headers, readings)
     batch_id = make_batch(device_id, JAN_10, ended_at, **yeast_range)
     detail = _get(client, user_headers, batch_id)
     assert detail["yeast_fit"] == expected
@@ -663,7 +652,7 @@ def test_temperature_notes(
 ) -> None:
     device_id, headers = make_device("vessel-a")
     if readings:
-        _ingest(client, headers, readings)
+        post_readings(client, headers, readings)
     batch_id = make_batch(device_id, JAN_10, JAN_20, **yeast_range)
     assert _get(client, user_headers, batch_id)["notes"] == expected
 

@@ -22,6 +22,7 @@ USER_ROUTES = {
     ("GET", "/api/v1/devices"),
     ("GET", "/api/v1/locations"),
     ("GET", "/api/v1/readings"),
+    ("GET", "/api/v1/readings/buckets"),
     ("GET", "/api/v1/batches"),
     ("GET", "/api/v1/batches/{batch_id}"),
 }

@@ -1,38 +1,59 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
+import { type ReactNode, Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
 import { BatchSummaryTable } from "@/components/batch-summary-table";
 import { BatchYeast } from "@/components/batch-yeast";
 import { MetricChart } from "@/components/metric-chart";
-import { PartialNotice } from "@/components/partial-notice";
 import { ReadingTime } from "@/components/reading-time";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { findDevice, getApi } from "@/lib/api/client";
-import { breakGaps, parseId, READINGS_LIMIT, toPoints } from "@/lib/history";
+import {
+  autoBucket,
+  BATCH_PERIODS,
+  type BatchPeriod,
+  batchWindow,
+  breakGaps,
+  DEFAULT_GRANULARITY,
+  DEFAULT_PERIOD,
+  GRANULARITIES,
+  type Granularity,
+  parseId,
+  parseRange,
+  pickBucket,
+  toBucketPoints,
+} from "@/lib/history";
 import { inMetricOrder, METRIC_INFO } from "@/lib/metrics";
 import { formatAge } from "@/lib/time";
 import { yeastRange } from "@/lib/yeast";
 
-export default function BatchPage({ params }: PageProps<"/batches/[id]">) {
+export default function BatchPage({ params, searchParams }: PageProps<"/batches/[id]">) {
   return (
     <main className="mx-auto w-full max-w-4xl p-6">
       <Link href="/" className="mb-4 inline-block text-sm text-muted-foreground hover:underline">
         ← Dashboard
       </Link>
       <Suspense fallback={<p className="text-muted-foreground">Loading batch…</p>}>
-        <BatchDetailView params={params} />
+        <BatchDetailView params={params} searchParams={searchParams} />
       </Suspense>
       <AutoRefresh />
     </main>
   );
 }
 
-async function BatchDetailView({ params }: Pick<PageProps<"/batches/[id]">, "params">) {
+async function BatchDetailView({
+  params,
+  searchParams,
+}: Pick<PageProps<"/batches/[id]">, "params" | "searchParams">) {
   const { id: rawId } = await params;
   const id = parseId(rawId);
   if (id === null) notFound();
+
+  const query = await searchParams;
+  const period = parseRange(query.period, BATCH_PERIODS, DEFAULT_PERIOD);
+  const requested = parseRange(query.granularity, GRANULARITIES, DEFAULT_GRANULARITY);
 
   const api = await getApi(); // must come before new Date(): it opts the render out of prerendering
   const now = new Date();
@@ -41,21 +62,25 @@ async function BatchDetailView({ params }: Pick<PageProps<"/batches/[id]">, "par
   if (result.response.status === 404) notFound();
   if (result.error) throw new Error("Failed to load data from the API");
   const batch = result.data;
+  const { from, to } = batchWindow(batch, period, now);
+  const bucket = pickBucket(requested, to - from);
+  // A manual size over the API's cap falls back to Auto, and the nav says so.
+  const granularity: Granularity = bucket === requested ? requested : "auto";
+  const since = period === "whole" ? undefined : new Date(from).toISOString();
+  const href = (p: BatchPeriod, g: Granularity) => `/batches/${id}?period=${p}&granularity=${g}`;
   const [device, results] = await Promise.all([
     findDevice(batch.device_id),
     Promise.all(
       inMetricOrder(batch.metrics).map(async ({ metric }) => {
-        const readings = await api.GET("/api/v1/readings", {
-          params: { query: { batch_id: id, metric, limit: READINGS_LIMIT } },
+        const buckets = await api.GET("/api/v1/readings/buckets", {
+          params: { query: { batch_id: id, metric, bucket, since } },
         });
-        if (readings.error) throw new Error("Failed to load data from the API");
-        return { metric, rows: readings.data };
+        if (buckets.error) throw new Error("Failed to load data from the API");
+        return { metric, rows: buckets.data };
       }),
     ),
   ]);
   const withRows = results.filter(({ rows }) => rows.length > 0);
-  const from = Date.parse(batch.started_at);
-  const to = batch.ended_at ? Date.parse(batch.ended_at) : now.getTime();
   const range = yeastRange(batch) ?? undefined;
 
   return (
@@ -80,11 +105,34 @@ async function BatchDetailView({ params }: Pick<PageProps<"/batches/[id]">, "par
         <div className="mt-4">
           <BatchYeast batch={batch} />
         </div>
+        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+          <nav aria-label="Period" className="flex gap-2">
+            {BATCH_PERIODS.map((p) => (
+              <PresetLink key={p} href={href(p, granularity)} active={p === period}>
+                {p === "whole" ? "Whole batch" : p}
+              </PresetLink>
+            ))}
+          </nav>
+          <nav aria-label="Granularity" className="flex gap-2">
+            {GRANULARITIES.map((g) =>
+              g !== "auto" && pickBucket(g, to - from) !== g ? (
+                <Button key={g} variant="outline" size="sm" disabled>
+                  {g}
+                </Button>
+              ) : (
+                <PresetLink key={g} href={href(period, g)} active={g === granularity}>
+                  {g === "auto" ? `Auto (${autoBucket(to - from)})` : g}
+                </PresetLink>
+              ),
+            )}
+          </nav>
+        </div>
       </header>
-      {withRows.length === 0 ? (
+      {batch.metrics.length === 0 ? (
         <p className="text-muted-foreground">No readings in this batch&apos;s window.</p>
       ) : (
         <>
+          {withRows.length === 0 && <p className="text-muted-foreground">No readings in the selected period.</p>}
           <div className="grid gap-6">
             {withRows.map(({ metric, rows }) => (
               <Card key={metric}>
@@ -94,10 +142,9 @@ async function BatchDetailView({ params }: Pick<PageProps<"/batches/[id]">, "par
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <PartialNotice count={rows.length} where="in this batch" />
                   <MetricChart
                     metric={metric}
-                    points={breakGaps(toPoints(rows))}
+                    points={breakGaps(toBucketPoints(rows))}
                     from={from}
                     to={to}
                     yeastRange={metric === "temperature_c" ? range : undefined}
@@ -113,5 +160,17 @@ async function BatchDetailView({ params }: Pick<PageProps<"/batches/[id]">, "par
         </>
       )}
     </>
+  );
+}
+
+function PresetLink({ href, active, children }: { href: string; active: boolean; children: ReactNode }) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={buttonVariants({ variant: active ? "default" : "outline", size: "sm" })}
+    >
+      {children}
+    </Link>
   );
 }

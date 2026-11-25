@@ -182,6 +182,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/readings/buckets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reading Buckets
+         * @description Average, min and max of a batch's readings per time bucket, oldest first.
+         *
+         *     One row per non-empty bucket; buckets sit on a fixed UTC grid, so the first may start before
+         *     the window but holds only readings inside it. Unlike `list_readings`, nothing is truncated:
+         *     a window needing more than `MAX_BUCKETS` buckets is a 422.
+         */
+        get: operations["list_reading_buckets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -267,6 +291,12 @@ export interface components {
             /** Yeast Max Temperature C */
             yeast_max_temperature_c?: number | null;
         };
+        /**
+         * BucketSize
+         * @description A chart's time-bucket size. A query parameter only, never stored.
+         * @enum {string}
+         */
+        BucketSize: "5m" | "15m" | "30m" | "1h" | "3h" | "6h" | "12h" | "1d";
         /** DeviceCreate */
         DeviceCreate: {
             /** Name */
@@ -381,6 +411,20 @@ export interface components {
         ReadingBatch: {
             /** Readings */
             readings: components["schemas"]["ReadingIn"][];
+        };
+        /** ReadingBucket */
+        ReadingBucket: {
+            /**
+             * Bucket Start
+             * Format: date-time
+             */
+            bucket_start: string;
+            /** Avg Value */
+            avg_value: number;
+            /** Min Value */
+            min_value: number;
+            /** Max Value */
+            max_value: number;
         };
         /** ReadingIn */
         ReadingIn: {
@@ -912,6 +956,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IngestResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_reading_buckets: {
+        parameters: {
+            query: {
+                batch_id: number;
+                metric: components["schemas"]["Metric"];
+                bucket: components["schemas"]["BucketSize"];
+                since?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingBucket"][];
                 };
             };
             /** @description Validation Error */
