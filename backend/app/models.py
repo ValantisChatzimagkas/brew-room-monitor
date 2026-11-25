@@ -4,7 +4,7 @@ Convention: `XBase` = shared fields, `X` (table=True) = DB row, `XCreate` / `XPu
 Never return a table model with secrets (e.g. token_hash) directly from a route.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any, NamedTuple, Self
 
@@ -36,6 +36,40 @@ class Metric(StrEnum):
     PRESSURE_HPA = "pressure_hpa"
     SPECIFIC_GRAVITY = "specific_gravity"
     BATTERY_V = "battery_v"
+
+
+class BucketSize(StrEnum):
+    """A chart's time-bucket size. A query parameter only, never stored."""
+
+    MIN_5 = "5m"
+    MIN_15 = "15m"
+    MIN_30 = "30m"
+    HOUR_1 = "1h"
+    HOUR_3 = "3h"
+    HOUR_6 = "6h"
+    HOUR_12 = "12h"
+    DAY_1 = "1d"
+
+
+def bucket_duration(size: BucketSize) -> timedelta:
+    # No `case _`: mypy then fails here when a BucketSize member has no duration.
+    match size:
+        case BucketSize.MIN_5:
+            return timedelta(minutes=5)
+        case BucketSize.MIN_15:
+            return timedelta(minutes=15)
+        case BucketSize.MIN_30:
+            return timedelta(minutes=30)
+        case BucketSize.HOUR_1:
+            return timedelta(hours=1)
+        case BucketSize.HOUR_3:
+            return timedelta(hours=3)
+        case BucketSize.HOUR_6:
+            return timedelta(hours=6)
+        case BucketSize.HOUR_12:
+            return timedelta(hours=12)
+        case BucketSize.DAY_1:
+            return timedelta(days=1)
 
 
 class MetricSpec(NamedTuple):
@@ -316,6 +350,13 @@ class ReadingPublic(SQLModel):
     metric: Metric
     value: float
     recorded_at: datetime
+
+
+class ReadingBucket(SQLModel):
+    bucket_start: datetime
+    avg_value: float
+    min_value: float
+    max_value: float
 
 
 class IngestResult(SQLModel):

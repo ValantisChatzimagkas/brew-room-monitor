@@ -6,11 +6,10 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { BatchSummaryTable } from "@/components/batch-summary-table";
 import { BatchYeast } from "@/components/batch-yeast";
 import { MetricChart } from "@/components/metric-chart";
-import { PartialNotice } from "@/components/partial-notice";
 import { ReadingTime } from "@/components/reading-time";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { findDevice, getApi } from "@/lib/api/client";
-import { breakGaps, parseId, READINGS_LIMIT, toPoints } from "@/lib/history";
+import { autoBucket, breakGaps, parseId, toBucketPoints } from "@/lib/history";
 import { inMetricOrder, METRIC_INFO } from "@/lib/metrics";
 import { formatAge } from "@/lib/time";
 import { yeastRange } from "@/lib/yeast";
@@ -41,21 +40,22 @@ async function BatchDetailView({ params }: Pick<PageProps<"/batches/[id]">, "par
   if (result.response.status === 404) notFound();
   if (result.error) throw new Error("Failed to load data from the API");
   const batch = result.data;
+  const from = Date.parse(batch.started_at);
+  const to = batch.ended_at ? Date.parse(batch.ended_at) : now.getTime();
+  const bucket = autoBucket(to - from);
   const [device, results] = await Promise.all([
     findDevice(batch.device_id),
     Promise.all(
       inMetricOrder(batch.metrics).map(async ({ metric }) => {
-        const readings = await api.GET("/api/v1/readings", {
-          params: { query: { batch_id: id, metric, limit: READINGS_LIMIT } },
+        const buckets = await api.GET("/api/v1/readings/buckets", {
+          params: { query: { batch_id: id, metric, bucket } },
         });
-        if (readings.error) throw new Error("Failed to load data from the API");
-        return { metric, rows: readings.data };
+        if (buckets.error) throw new Error("Failed to load data from the API");
+        return { metric, rows: buckets.data };
       }),
     ),
   ]);
   const withRows = results.filter(({ rows }) => rows.length > 0);
-  const from = Date.parse(batch.started_at);
-  const to = batch.ended_at ? Date.parse(batch.ended_at) : now.getTime();
   const range = yeastRange(batch) ?? undefined;
 
   return (
@@ -94,10 +94,9 @@ async function BatchDetailView({ params }: Pick<PageProps<"/batches/[id]">, "par
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <PartialNotice count={rows.length} where="in this batch" />
                   <MetricChart
                     metric={metric}
-                    points={breakGaps(toPoints(rows))}
+                    points={breakGaps(toBucketPoints(rows))}
                     from={from}
                     to={to}
                     yeastRange={metric === "temperature_c" ? range : undefined}

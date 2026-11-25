@@ -1,10 +1,10 @@
 "use client";
 
-import { CartesianGrid, Dot, Line, LineChart, ReferenceArea, XAxis, YAxis } from "recharts";
+import { Area, CartesianGrid, ComposedChart, Dot, Line, ReferenceArea, XAxis, YAxis } from "recharts";
 
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import type { Metric } from "@/lib/api/client";
-import { type ChartGap, type ChartPoint, isIsolated } from "@/lib/history";
+import { type BucketPoint, type ChartGap, type ChartPoint, isIsolated } from "@/lib/history";
 import { formatValue, METRIC_INFO } from "@/lib/metrics";
 import { chartTickFormat } from "@/lib/time";
 import { yeastPosition, type YeastRange } from "@/lib/yeast";
@@ -21,19 +21,24 @@ export function MetricChart({
   yeastRange,
 }: {
   metric: Metric;
-  points: (ChartPoint | ChartGap)[];
+  points: (ChartPoint | BucketPoint | ChartGap)[];
   from: number;
   to: number;
   yeastRange?: YeastRange;
 }) {
   const { label, decimals } = METRIC_INFO[metric];
-  const config: ChartConfig = { value: { label, color: "var(--primary)" } };
+  const config: ChartConfig = {
+    value: { label, color: "var(--primary)" },
+    range: { label: "Min–max", color: "var(--primary)" },
+  };
+  // Bucketed points carry their min-max; raw readings don't, and get no envelope.
+  const hasRange = points.some((p) => "range" in p);
   const position = (value: number) => (yeastRange ? yeastPosition(value, yeastRange) : "inside");
 
   return (
     <>
       <ChartContainer config={config} className="aspect-auto h-64 w-full">
-        <LineChart data={points} margin={{ left: 8, right: 8 }}>
+        <ComposedChart data={points} margin={{ left: 8, right: 8 }}>
           <CartesianGrid vertical={false} />
           <XAxis
             dataKey="time"
@@ -69,6 +74,15 @@ export function MetricChart({
                   return typeof time === "number" ? new Date(time).toLocaleString() : null;
                 }}
                 formatter={(value) => {
+                  if (Array.isArray(value)) {
+                    const [low, high]: unknown[] = value;
+                    if (typeof low !== "number" || typeof high !== "number") return String(value);
+                    return (
+                      <span className="text-muted-foreground">
+                        Range {formatValue(metric, low)} – {formatValue(metric, high)}
+                      </span>
+                    );
+                  }
                   if (typeof value !== "number") return String(value);
                   const where = position(value);
                   return (
@@ -81,6 +95,16 @@ export function MetricChart({
               />
             }
           />
+          {hasRange && (
+            <Area
+              dataKey="range"
+              type="monotone"
+              stroke="none"
+              fill="var(--color-range)"
+              fillOpacity={0.15}
+              isAnimationActive={false}
+            />
+          )}
           <Line
             dataKey="value"
             name={label}
@@ -106,7 +130,7 @@ export function MetricChart({
             }}
             isAnimationActive={false}
           />
-        </LineChart>
+        </ComposedChart>
       </ChartContainer>
       {yeastRange && (
         <p className="mt-2 text-sm text-muted-foreground">

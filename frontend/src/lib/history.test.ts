@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { breakGaps, type ChartPoint, isIsolated, isPartial, parseId, parseRange, rangeSince, toPoints } from "./history";
+import {
+  autoBucket,
+  breakGaps,
+  type ChartPoint,
+  isIsolated,
+  isPartial,
+  parseId,
+  parseRange,
+  rangeSince,
+  toBucketPoints,
+  toPoints,
+} from "./history";
 
 describe("parseRange", () => {
   it.each([
@@ -63,6 +74,35 @@ describe("toPoints", () => {
 
   it("returns nothing for no rows", () => {
     expect(toPoints([])).toEqual([]);
+  });
+});
+
+describe("toBucketPoints", () => {
+  it("plots each bucket's average at its start, with its min-max as the range", () => {
+    const buckets = [
+      { bucket_start: "2026-01-01T12:00:00Z", avg_value: 12, min_value: 10, max_value: 14 },
+      { bucket_start: "2026-01-01T13:00:00Z", avg_value: 20, min_value: 20, max_value: 20 },
+    ];
+    expect(toBucketPoints(buckets)).toEqual([
+      { time: Date.parse("2026-01-01T12:00:00Z"), value: 12, range: [10, 14] },
+      { time: Date.parse("2026-01-01T13:00:00Z"), value: 20, range: [20, 20] },
+    ]);
+  });
+});
+
+describe("autoBucket", () => {
+  const HOUR = 60 * 60 * 1000;
+  const DAY = 24 * HOUR;
+  it.each([
+    ["empty window", 0, "5m"],
+    ["24h", 24 * HOUR, "5m"],
+    ["3d", 3 * DAY, "15m"],
+    ["7d", 7 * DAY, "30m"],
+    ["28d", 28 * DAY, "3h"],
+    ["183d", 183 * DAY, "12h"],
+    ["1095d: nothing fits, the largest", 1095 * DAY, "1d"],
+  ])("%s -> %s", (_, spanMs, expected) => {
+    expect(autoBucket(spanMs)).toBe(expected);
   });
 });
 

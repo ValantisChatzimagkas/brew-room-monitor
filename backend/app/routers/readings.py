@@ -1,18 +1,25 @@
-from datetime import datetime, timedelta
+import math
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import AwareDatetime
+from sqlalchemy import func
+from sqlalchemy import select as select_columns  # sqlmodel's `select` types at most 4 columns
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col, select
 
 from app.deps import DeviceDep, SessionDep, UserDep, get_batch_or_404, owned
 from app.models import (
+    BucketSize,
     Device,
     IngestResult,
     Metric,
     Reading,
     ReadingBatch,
+    ReadingBucket,
     ReadingPublic,
+    bucket_duration,
     metric_spec,
     utcnow,
 )
@@ -22,6 +29,10 @@ router = APIRouter(prefix="/readings", tags=["readings"])
 
 # Reject device clocks that are clearly wrong rather than storing garbage timestamps.
 MAX_CLOCK_SKEW = timedelta(minutes=5)
+# A chart never carries more points than the raw readings route's max `limit`.
+MAX_BUCKETS = 5000
+# Fixed, not the batch start or `since`: buckets stay on clock boundaries across refreshes.
+_BUCKET_ORIGIN = datetime(2000, 1, 1, tzinfo=UTC)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -87,3 +98,52 @@ def list_readings(
     if since is not None:
         query = query.where(col(Reading.recorded_at) >= since)
     return [ReadingPublic.model_validate(r) for r in session.exec(query).all()]
+
+
+@router.get("/buckets")
+def list_reading_buckets(
+    session: SessionDep,
+    user: UserDep,
+    batch_id: int,
+    metric: Metric,
+    bucket: BucketSize,
+    since: AwareDatetime | None = None,
+) -> list[ReadingBucket]:
+    """Average, min and max of a batch's readings per time bucket, oldest first.
+
+    One row per non-empty bucket; buckets sit on a fixed UTC grid, so the first may start before
+    the window but holds only readings inside it. Unlike `list_readings`, nothing is truncated:
+    a window needing more than `MAX_BUCKETS` buckets is a 422.
+    """
+    batch = get_batch_or_404(session, batch_id, user)
+    start = max(batch.started_at, since) if since else batch.started_at
+    size = bucket_duration(bucket)
+    if _bucket_count(start, batch.ended_at or utcnow(), size) > MAX_BUCKETS:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"More than {MAX_BUCKETS} buckets: pick a larger bucket or a shorter period",
+        )
+
+    value = col(Reading.value)
+    # Built once and reused: psycopg binds each copy's params separately, and Postgres would
+    # then reject the select as not in GROUP BY.
+    bucket_start = func.date_bin(size, col(Reading.recorded_at), _BUCKET_ORIGIN)
+    query = (
+        select_columns(bucket_start, func.avg(value), func.min(value), func.max(value))
+        .where(*batch_readings_filter(batch), col(Reading.metric) == metric)
+        .group_by(bucket_start)
+        .order_by(bucket_start)
+    )
+    if since is not None:
+        query = query.where(col(Reading.recorded_at) >= since)
+    return [
+        ReadingBucket(bucket_start=start_at, avg_value=avg, min_value=low, max_value=high)
+        for start_at, avg, low, high in session.execute(query).all()
+    ]
+
+
+def _bucket_count(start: datetime, end: datetime, size: timedelta) -> int:
+    """The most grid-aligned buckets a window of this span can touch."""
+    if end <= start:
+        return 0
+    return math.ceil((end - start) / size) + 1
