@@ -190,6 +190,12 @@ export interface components {
         BatchCreate: {
             /** Name */
             name: string;
+            /** Yeast Name */
+            yeast_name?: string | null;
+            /** Yeast Min Temperature C */
+            yeast_min_temperature_c?: number | null;
+            /** Yeast Max Temperature C */
+            yeast_max_temperature_c?: number | null;
             /** Device Id */
             device_id: number;
             /** Started At */
@@ -201,6 +207,12 @@ export interface components {
         BatchDetail: {
             /** Name */
             name: string;
+            /** Yeast Name */
+            yeast_name?: string | null;
+            /** Yeast Min Temperature C */
+            yeast_min_temperature_c?: number | null;
+            /** Yeast Max Temperature C */
+            yeast_max_temperature_c?: number | null;
             /** Id */
             id: number;
             /** Device Id */
@@ -214,11 +226,18 @@ export interface components {
             ended_at: string | null;
             /** Metrics */
             metrics: components["schemas"]["MetricSummary"][];
+            yeast_fit: components["schemas"]["YeastFit"] | null;
         };
         /** BatchPublic */
         BatchPublic: {
             /** Name */
             name: string;
+            /** Yeast Name */
+            yeast_name?: string | null;
+            /** Yeast Min Temperature C */
+            yeast_min_temperature_c?: number | null;
+            /** Yeast Max Temperature C */
+            yeast_max_temperature_c?: number | null;
             /** Id */
             id: number;
             /** Device Id */
@@ -239,6 +258,12 @@ export interface components {
             started_at?: string | null;
             /** Ended At */
             ended_at?: string | null;
+            /** Yeast Name */
+            yeast_name?: string | null;
+            /** Yeast Min Temperature C */
+            yeast_min_temperature_c?: number | null;
+            /** Yeast Max Temperature C */
+            yeast_max_temperature_c?: number | null;
         };
         /** DeviceCreate */
         DeviceCreate: {
@@ -388,6 +413,18 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * YeastFit
+         * @description The batch's temperature_c readings counted against its yeast range (bounds are inside).
+         */
+        YeastFit: {
+            /** Below */
+            below: number;
+            /** Inside */
+            inside: number;
+            /** Above */
+            above: number;
         };
     };
     responses: never;

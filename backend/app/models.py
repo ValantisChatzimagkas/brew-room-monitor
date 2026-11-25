@@ -6,7 +6,7 @@ Never return a table model with secrets (e.g. token_hash) directly from a route.
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import NamedTuple, Self
+from typing import Any, NamedTuple, Self
 
 from pydantic import AwareDatetime, ConfigDict, model_validator
 from sqlalchemy import Column, DateTime, Index, String, UniqueConstraint, func, text
@@ -67,6 +67,12 @@ def metric_spec(metric: Metric) -> MetricSpec:
                 min_value=0,
                 max_value=5.5,
             )
+
+
+def _yeast_bound() -> Any:  # Any: what sqlmodel's Field returns
+    """An optional yeast temperature bound, within the temperature_c sensor's range."""
+    spec = metric_spec(Metric.TEMPERATURE_C)
+    return Field(default=None, ge=spec.min_value, le=spec.max_value)
 
 
 # --- Location -------------------------------------------------------------
@@ -153,6 +159,10 @@ class DeviceCreated(DevicePublic):
 
 class BatchBase(SQLModel):
     name: str = Field(min_length=1, max_length=64)  # a brew, e.g. "Summer IPA"
+    # The yeast's range; both bounds or neither (checked in the router, which sees the stored row).
+    yeast_name: str | None = Field(default=None, min_length=1, max_length=64)
+    yeast_min_temperature_c: float | None = _yeast_bound()
+    yeast_max_temperature_c: float | None = _yeast_bound()
 
 
 class Batch(BatchBase, table=True):
@@ -189,6 +199,10 @@ class BatchUpdate(SQLModel):
     name: str | None = Field(default=None, min_length=1, max_length=64)
     started_at: AwareDatetime | None = None
     ended_at: AwareDatetime | None = None  # explicit null reopens the batch
+    # Explicit null clears the yeast name or range.
+    yeast_name: str | None = Field(default=None, min_length=1, max_length=64)
+    yeast_min_temperature_c: float | None = _yeast_bound()
+    yeast_max_temperature_c: float | None = _yeast_bound()
 
     @model_validator(mode="after")
     def _required_not_null(self) -> Self:
@@ -215,8 +229,17 @@ class MetricSummary(SQLModel):
     latest_recorded_at: datetime
 
 
+class YeastFit(SQLModel):
+    """The batch's temperature_c readings counted against its yeast range (bounds are inside)."""
+
+    below: int
+    inside: int
+    above: int
+
+
 class BatchDetail(BatchPublic):
     metrics: list[MetricSummary]  # one per metric with a reading in the window, by metric name
+    yeast_fit: YeastFit | None  # None when the batch has no yeast range
 
 
 # --- User -----------------------------------------------------------------

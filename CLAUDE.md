@@ -61,7 +61,7 @@ Sensors (ESP32 now, in-fermenter capsules later) push readings → FastAPI store
 - **Reading**: one `(device, metric, value, recorded_at)` sample.
 - **Batch**: a brew on one device over a time window (`started_at`, `ended_at`; open while `ended_at` is null).
 - **User**: a person, identified by the provider's `(issuer, subject)`; row in `app_user`, created on first verified request.
-- **Yeast profile** (not built yet): a yeast strain and its temperature range, attached to a batch; insights compare readings against it.
+- **Yeast profile**: a yeast name and temperature range stored on the batch (`yeast_*` fields; no catalog table yet); insights compare the batch's readings against it.
 
 ## Commits
 Conventional Commits (`feat:`, `fix:`, `refactor:`, `chore:`…), small and focused. Don't commit `.env*` files.

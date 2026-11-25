@@ -12,6 +12,7 @@ import { type BatchDetail, getApi } from "@/lib/api/client";
 import { isPartial, parseDeviceId, parseRange, RANGES, rangeSince, READINGS_LIMIT, toPoints } from "@/lib/history";
 import { formatValue, inMetricOrder, METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
 import { formatAge } from "@/lib/time";
+import { yeastSplit } from "@/lib/yeast";
 
 const BATCHES_LIMIT = 10;
 
@@ -163,6 +164,21 @@ function BatchCard({ batch, now }: { batch: BatchDetail; now: Date }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="mb-4 text-sm">
+          <YeastLine batch={batch} />
+          {batch.yeast_fit !== null && (
+            <p className="tabular-nums">
+              {yeastSplit(batch.yeast_fit).map((item, i) => (
+                <span key={item.label}>
+                  {i > 0 && " · "}
+                  <span className={item.flagged ? "font-medium text-out-of-range" : undefined}>
+                    {item.count} {item.label}
+                  </span>
+                </span>
+              ))}
+            </p>
+          )}
+        </div>
         {batch.metrics.length === 0 ? (
           <p className="text-sm text-muted-foreground">No readings in this batch&apos;s window.</p>
         ) : (
@@ -199,4 +215,20 @@ function BatchCard({ batch, now }: { batch: BatchDetail; now: Date }) {
       </CardContent>
     </Card>
   );
+}
+
+function YeastLine({ batch }: { batch: BatchDetail }) {
+  // Optional in the generated type (the fields have defaults), though the API always sends them.
+  const name = batch.yeast_name ?? null;
+  const min = batch.yeast_min_temperature_c ?? null;
+  const max = batch.yeast_max_temperature_c ?? null;
+  if (min !== null && max !== null) {
+    return (
+      <p>
+        Yeast: {name ?? "unnamed"} · {formatValue("temperature_c", min)} – {formatValue("temperature_c", max)}
+      </p>
+    );
+  }
+  if (name !== null) return <p>Yeast: {name} · no temperature range set</p>;
+  return <p className="text-muted-foreground">No yeast set</p>;
 }
