@@ -17,7 +17,7 @@ export async function startBatch(deviceId: number, _prev: NewBatchState, input: 
   const api = await getApi();
   const id = parseId(String(deviceId));
   if (id === null) notFound();
-  // A foreign device is not found like a missing one, before anything is sent to the backend.
+  // A foreign device is not found like a missing one, before the POST.
   const device = await findDevice(id);
   if (!device) notFound();
   // The backend still accepts a batch on a revoked device; only the UI refuses it.

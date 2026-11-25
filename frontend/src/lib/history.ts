@@ -108,13 +108,19 @@ export function batchWindow(
   return { from: Math.max(start, rangeSince(period, new Date(to)).getTime()), to };
 }
 
+/** An ISO date-time with an explicit zone, as epoch ms; `null` if it isn't one. */
+function parseZonedIso(iso: string): number | null {
+  const ms = Date.parse(iso);
+  return /(Z|[+-]\d{2}:\d{2})$/.test(iso) && Number.isFinite(ms) ? ms : null;
+}
+
 /**
  * Why an end time can't end this batch, in the user's words; `null` if it can. Mirrors the backend's
  * `_check_window` (end == start voids the batch, end == now is allowed), which stays the authority.
  */
 export function endTimeError(endedAtIso: string, startedAtIso: string, now: Date): string | null {
-  const end = Date.parse(endedAtIso);
-  if (!/(Z|[+-]\d{2}:\d{2})$/.test(endedAtIso) || !Number.isFinite(end)) return "Enter a valid end time.";
+  const end = parseZonedIso(endedAtIso);
+  if (end === null) return "Enter a valid end time.";
   if (end < Date.parse(startedAtIso)) return "The end time is before the batch started.";
   if (end > now.getTime()) return "The end time is in the future.";
   return null;
@@ -158,10 +164,9 @@ export function parseNewBatch(
   if (name === "") errors.name = "Enter a name.";
   else if (name.length > NAME_MAX) errors.name = "Keep the name to 64 characters.";
 
-  const start = Date.parse(input.startedAt);
-  if (!/(Z|[+-]\d{2}:\d{2})$/.test(input.startedAt) || !Number.isFinite(start)) {
-    errors.startedAt = "Enter a valid start time.";
-  } else if (start > now.getTime()) errors.startedAt = "The start time is in the future.";
+  const start = parseZonedIso(input.startedAt);
+  if (start === null) errors.startedAt = "Enter a valid start time.";
+  else if (start > now.getTime()) errors.startedAt = "The start time is in the future.";
 
   const yeastName = input.yeastName.trim();
   if (yeastName.length > NAME_MAX) errors.yeastName = "Keep the yeast name to 64 characters.";
