@@ -226,6 +226,7 @@ export interface components {
             ended_at: string | null;
             /** Metrics */
             metrics: components["schemas"]["MetricSummary"][];
+            yeast_fit: components["schemas"]["YeastFit"] | null;
         };
         /** BatchPublic */
         BatchPublic: {
@@ -412,6 +413,18 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * YeastFit
+         * @description The batch's temperature_c readings counted against its yeast range (bounds are inside).
+         */
+        YeastFit: {
+            /** Below */
+            below: number;
+            /** Inside */
+            inside: number;
+            /** Above */
+            above: number;
         };
     };
     responses: never;

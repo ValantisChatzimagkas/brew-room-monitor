@@ -15,9 +15,11 @@ from app.models import (
     BatchPublic,
     BatchUpdate,
     Device,
+    Metric,
     MetricSummary,
     Reading,
     User,
+    YeastFit,
     utcnow,
 )
 from app.services.batches import batch_readings_filter
@@ -54,6 +56,7 @@ def get_batch(batch_id: int, session: SessionDep, scope: ScopeDep) -> BatchDetai
     return BatchDetail(
         **BatchPublic.model_validate(batch).model_dump(),
         metrics=_summarize_metrics(session, batch),
+        yeast_fit=_fit_yeast_range(session, batch),
     )
 
 
@@ -144,6 +147,21 @@ def _summarize_metrics(session: Session, batch: Batch) -> list[MetricSummary]:
         )
         for metric, count, low, high, mean, latest_value, latest_at in session.execute(query).all()
     ]
+
+
+def _fit_yeast_range(session: Session, batch: Batch) -> YeastFit | None:
+    low, high = batch.yeast_min_temperature_c, batch.yeast_max_temperature_c
+    if low is None or high is None:
+        return None
+    value = col(Reading.value)
+    # No GROUP BY, so a window without temperature readings still gives one row of zeros.
+    query = select_columns(
+        func.count().filter(value < low),
+        func.count().filter(value.between(low, high)),  # inclusive: a bound counts as inside
+        func.count().filter(value > high),
+    ).where(*batch_readings_filter(batch), col(Reading.metric) == Metric.TEMPERATURE_C)
+    below, inside, above = session.execute(query).one()
+    return YeastFit(below=below, inside=inside, above=above)
 
 
 def _ensure_device_exists(session: Session, device_id: int, user: User) -> None:

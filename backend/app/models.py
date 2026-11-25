@@ -234,8 +234,17 @@ class MetricSummary(SQLModel):
     latest_recorded_at: datetime
 
 
+class YeastFit(SQLModel):
+    """The batch's temperature_c readings counted against its yeast range (bounds are inside)."""
+
+    below: int
+    inside: int
+    above: int
+
+
 class BatchDetail(BatchPublic):
     metrics: list[MetricSummary]  # one per metric with a reading in the window, by metric name
+    yeast_fit: YeastFit | None  # None when the batch has no yeast range
 
 
 # --- User -----------------------------------------------------------------

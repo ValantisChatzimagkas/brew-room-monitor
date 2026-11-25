@@ -947,6 +947,16 @@
             },
             "type": "array",
             "title": "Metrics"
+          },
+          "yeast_fit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/YeastFit"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -956,7 +966,8 @@
           "device_id",
           "started_at",
           "ended_at",
-          "metrics"
+          "metrics",
+          "yeast_fit"
         ],
         "title": "BatchDetail"
       },
@@ -1571,6 +1582,30 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "YeastFit": {
+        "properties": {
+          "below": {
+            "type": "integer",
+            "title": "Below"
+          },
+          "inside": {
+            "type": "integer",
+            "title": "Inside"
+          },
+          "above": {
+            "type": "integer",
+            "title": "Above"
+          }
+        },
+        "type": "object",
+        "required": [
+          "below",
+          "inside",
+          "above"
+        ],
+        "title": "YeastFit",
+        "description": "The batch's temperature_c readings counted against its yeast range (bounds are inside)."
       }
     },
     "securitySchemes": {

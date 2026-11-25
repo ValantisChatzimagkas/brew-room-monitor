@@ -411,6 +411,88 @@ def test_open_batch_summary_runs_to_now(
     assert summary["max_value"] == 20  # the reading ahead of now is excluded, as in list_readings
 
 
+def test_yeast_fit_counts_readings_against_the_range(
+    client: TestClient,
+    user_headers: dict[str, str],
+    admin_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+) -> None:
+    a_id, a_headers = make_device("vessel-a")
+    _, b_headers = make_device("vessel-b")
+    # Distinct hours inside the window, so no two readings dedupe; 18 and 22 sit on the bounds.
+    in_window = [
+        ("temperature_c", value, JAN_10 + timedelta(hours=hour))
+        for hour, value in enumerate((17.9, 18, 20, 22, 22.1))
+    ]
+    _ingest(
+        client,
+        a_headers,
+        [
+            *in_window,
+            ("temperature_c", 30, JAN_5),  # before the window
+            ("specific_gravity", 1.05, JAN_12),  # not a temperature
+        ],
+    )
+    _ingest(client, b_headers, [("temperature_c", 30, JAN_12)])  # another device
+    batch_id = make_batch(
+        a_id, JAN_10, JAN_20, yeast_min_temperature_c=18, yeast_max_temperature_c=22
+    )
+    assert _get(client, admin_headers, batch_id)["yeast_fit"] == {
+        "below": 1,
+        "inside": 3,
+        "above": 1,
+    }
+
+    res = client.patch(
+        f"/api/v1/batches/{batch_id}",
+        json={"yeast_min_temperature_c": 10, "yeast_max_temperature_c": 15},
+        headers=user_headers,
+    )
+    assert res.status_code == 200
+    assert _get(client, admin_headers, batch_id)["yeast_fit"] == {
+        "below": 0,
+        "inside": 0,
+        "above": 5,
+    }
+
+
+@pytest.mark.parametrize(
+    ("readings", "yeast_range", "expected"),
+    [
+        pytest.param([("temperature_c", 20, JAN_12)], {}, None, id="no-range"),
+        pytest.param(
+            [("specific_gravity", 1.05, JAN_12)],
+            {"yeast_min_temperature_c": 18, "yeast_max_temperature_c": 22},
+            {"below": 0, "inside": 0, "above": 0},
+            id="range-no-temperature",
+        ),
+        pytest.param(
+            [],
+            {"yeast_min_temperature_c": 18, "yeast_max_temperature_c": 22},
+            {"below": 0, "inside": 0, "above": 0},
+            id="range-no-readings",
+        ),
+    ],
+)
+def test_yeast_fit_edge_cases(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+    readings: list[tuple[str, float, datetime | None]],
+    yeast_range: dict[str, float],
+    expected: dict[str, int] | None,
+) -> None:
+    device_id, headers = make_device("vessel-a")
+    if readings:
+        _ingest(client, headers, readings)
+    batch_id = make_batch(device_id, JAN_10, JAN_20, **yeast_range)
+    detail = _get(client, admin_headers, batch_id)
+    assert detail["yeast_fit"] == expected
+    assert len(detail["metrics"]) == len(readings)  # the summary is unaffected
+
+
 def test_get_unknown_batch_is_404(client: TestClient, admin_headers: dict[str, str]) -> None:
     assert client.get("/api/v1/batches/999", headers=admin_headers).status_code == 404
 
