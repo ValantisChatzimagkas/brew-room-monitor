@@ -69,6 +69,9 @@ def metric_spec(metric: Metric) -> MetricSpec:
             )
 
 
+_TEMPERATURE = metric_spec(Metric.TEMPERATURE_C)
+
+
 # --- Location -------------------------------------------------------------
 
 
@@ -153,6 +156,14 @@ class DeviceCreated(DevicePublic):
 
 class BatchBase(SQLModel):
     name: str = Field(min_length=1, max_length=64)  # a brew, e.g. "Summer IPA"
+    # The yeast's range; both bounds or neither (checked in the router, which sees the stored row).
+    yeast_name: str | None = Field(default=None, min_length=1, max_length=64)
+    yeast_min_temperature_c: float | None = Field(
+        default=None, ge=_TEMPERATURE.min_value, le=_TEMPERATURE.max_value
+    )
+    yeast_max_temperature_c: float | None = Field(
+        default=None, ge=_TEMPERATURE.min_value, le=_TEMPERATURE.max_value
+    )
 
 
 class Batch(BatchBase, table=True):
@@ -189,6 +200,14 @@ class BatchUpdate(SQLModel):
     name: str | None = Field(default=None, min_length=1, max_length=64)
     started_at: AwareDatetime | None = None
     ended_at: AwareDatetime | None = None  # explicit null reopens the batch
+    # Explicit null clears the yeast name or range.
+    yeast_name: str | None = Field(default=None, min_length=1, max_length=64)
+    yeast_min_temperature_c: float | None = Field(
+        default=None, ge=_TEMPERATURE.min_value, le=_TEMPERATURE.max_value
+    )
+    yeast_max_temperature_c: float | None = Field(
+        default=None, ge=_TEMPERATURE.min_value, le=_TEMPERATURE.max_value
+    )
 
     @model_validator(mode="after")
     def _required_not_null(self) -> Self:

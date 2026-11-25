@@ -131,12 +131,14 @@ def make_batch(client: TestClient, user_headers: dict[str, str]) -> Callable[...
         ended_at: datetime | None = None,
         *,
         headers: dict[str, str] | None = None,
+        **fields: object,
     ) -> int:
         body: dict[str, object] = {
             "name": "ipa",
             "device_id": device_id,
             "started_at": started_at.isoformat(),
             "ended_at": ended_at.isoformat() if ended_at else None,
+            **fields,
         }
         res = client.post("/api/v1/batches", json=body, headers=headers or user_headers)
         assert res.status_code == 201

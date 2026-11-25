@@ -794,6 +794,45 @@
             "minLength": 1,
             "title": "Name"
           },
+          "yeast_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yeast Name"
+          },
+          "yeast_min_temperature_c": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 125.0,
+                "minimum": -40.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yeast Min Temperature C"
+          },
+          "yeast_max_temperature_c": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 125.0,
+                "minimum": -40.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yeast Max Temperature C"
+          },
           "device_id": {
             "type": "integer",
             "title": "Device Id"
@@ -837,6 +876,45 @@
             "maxLength": 64,
             "minLength": 1,
             "title": "Name"
+          },
+          "yeast_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yeast Name"
+          },
+          "yeast_min_temperature_c": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 125.0,
+                "minimum": -40.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yeast Min Temperature C"
+          },
+          "yeast_max_temperature_c": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 125.0,
+                "minimum": -40.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yeast Max Temperature C"
           },
           "id": {
             "type": "integer",
@@ -889,6 +967,45 @@
             "maxLength": 64,
             "minLength": 1,
             "title": "Name"
+          },
+          "yeast_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yeast Name"
+          },
+          "yeast_min_temperature_c": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 125.0,
+                "minimum": -40.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yeast Min Temperature C"
+          },
+          "yeast_max_temperature_c": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 125.0,
+                "minimum": -40.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yeast Max Temperature C"
           },
           "id": {
             "type": "integer",
@@ -964,6 +1081,45 @@
               }
             ],
             "title": "Ended At"
+          },
+          "yeast_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yeast Name"
+          },
+          "yeast_min_temperature_c": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 125.0,
+                "minimum": -40.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yeast Min Temperature C"
+          },
+          "yeast_max_temperature_c": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 125.0,
+                "minimum": -40.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yeast Max Temperature C"
           }
         },
         "type": "object",

@@ -62,6 +62,7 @@ def create_batch(payload: BatchCreate, session: SessionDep, user: UserDep) -> Ba
     _ensure_device_exists(session, payload.device_id, user)
     started_at = payload.started_at or utcnow()
     _check_window(started_at, payload.ended_at)
+    _check_yeast_range(payload.yeast_min_temperature_c, payload.yeast_max_temperature_c)
     batch = Batch.model_validate(payload, update={"started_at": started_at})
     save_or_conflict(session, batch, _OVERLAP)
     return BatchPublic.model_validate(batch)
@@ -75,6 +76,10 @@ def update_batch(
     changes = payload.model_dump(exclude_unset=True)
     _check_window(
         changes.get("started_at", batch.started_at), changes.get("ended_at", batch.ended_at)
+    )
+    _check_yeast_range(
+        changes.get("yeast_min_temperature_c", batch.yeast_min_temperature_c),
+        changes.get("yeast_max_temperature_c", batch.yeast_max_temperature_c),
     )
     batch.sqlmodel_update(changes)
     save_or_conflict(session, batch, _OVERLAP)
@@ -94,6 +99,18 @@ def _check_window(started_at: datetime, ended_at: datetime | None) -> None:
         )
     if ended_at is not None and ended_at < started_at:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "ended_at is before started_at")
+
+
+def _check_yeast_range(low: float | None, high: float | None) -> None:
+    if (low is None) != (high is None):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "Set both yeast temperature bounds or neither"
+        )
+    if low is not None and high is not None and low > high:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "yeast_min_temperature_c is above yeast_max_temperature_c",
+        )
 
 
 def _summarize_metrics(session: Session, batch: Batch) -> list[MetricSummary]:

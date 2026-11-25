@@ -78,6 +78,14 @@ def test_create_rejects_bad_payloads(
         {**ok, "started_at": "0001-01-01T00:00:00+05:00"},  # out of Postgres's timestamptz range
         {**ok, "started_at": JAN_10.isoformat(), "ended_at": JAN_1.isoformat()},
         {**ok, "started_at": JAN_1.isoformat(), "ended_at": future},
+        {**ok, "yeast_min_temperature_c": 18},  # half-set range
+        {**ok, "yeast_max_temperature_c": 22},
+        {**ok, "yeast_min_temperature_c": 23, "yeast_max_temperature_c": 18},
+        {**ok, "yeast_min_temperature_c": -40.1, "yeast_max_temperature_c": 22},  # sensor range
+        {**ok, "yeast_min_temperature_c": 18, "yeast_max_temperature_c": 125.1},
+        {**ok, "yeast_name": ""},
+        {**ok, "yeast_name": "   "},
+        {**ok, "yeast_name": "x" * 65},
     ]
     for body in bad_bodies:
         res = client.post("/api/v1/batches", json=body, headers=user_headers)
@@ -178,13 +186,78 @@ def test_update_rejects_nulls_and_unknown_id(
     make_batch: MakeBatch,
 ) -> None:
     device_id, _ = make_device("vessel-a")
-    batch_id = make_batch(device_id, JAN_1)
-    for changes in ({"name": None}, {"name": ""}, {"started_at": None}):
+    batch_id = make_batch(device_id, JAN_1, yeast_min_temperature_c=18, yeast_max_temperature_c=22)
+    for changes in (
+        {"name": None},
+        {"name": ""},
+        {"started_at": None},
+        {"yeast_min_temperature_c": 23},  # above the stored max
+        {"yeast_max_temperature_c": 17},  # below the stored min
+        {"yeast_min_temperature_c": None},  # half-set range
+        {"yeast_max_temperature_c": 130},
+        {"yeast_name": ""},
+    ):
         res = client.patch(f"/api/v1/batches/{batch_id}", json=changes, headers=user_headers)
         assert res.status_code == 422, changes
+    stored = client.get(f"/api/v1/batches/{batch_id}", headers=user_headers).json()
+    assert (stored["yeast_min_temperature_c"], stored["yeast_max_temperature_c"]) == (18, 22)
 
     res = client.patch("/api/v1/batches/999", json={"name": "x"}, headers=user_headers)
     assert res.status_code == 404
+
+
+def test_yeast_range_round_trips(
+    client: TestClient,
+    user_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+) -> None:
+    device_id, _ = make_device("vessel-a")
+    yeast_fields = ("yeast_name", "yeast_min_temperature_c", "yeast_max_temperature_c")
+
+    def yeast(body: dict[str, Any]) -> tuple[object, ...]:
+        return tuple(body[field] for field in yeast_fields)
+
+    res = client.post(
+        "/api/v1/batches",
+        json={
+            "name": "ipa",
+            "device_id": device_id,
+            "started_at": JAN_1.isoformat(),
+            "ended_at": JAN_5.isoformat(),
+            "yeast_name": " US-05 ",
+            "yeast_min_temperature_c": 18,
+            "yeast_max_temperature_c": 22,
+        },
+        headers=user_headers,
+    )
+    assert res.status_code == 201
+    batch_id = res.json()["id"]
+    assert yeast(res.json()) == ("US-05", 18, 22)
+    url = f"/api/v1/batches/{batch_id}"
+    assert yeast(client.get(url, headers=user_headers).json()) == ("US-05", 18, 22)
+
+    res = client.patch(url, json={"yeast_max_temperature_c": 24}, headers=user_headers)
+    assert (res.status_code, yeast(res.json())) == (200, ("US-05", 18, 24))
+
+    cleared = dict.fromkeys(yeast_fields)
+    assert client.patch(url, json=cleared, headers=user_headers).status_code == 200
+    assert yeast(client.get(url, headers=user_headers).json()) == (None, None, None)
+
+    plain = make_batch(device_id, JAN_5, JAN_10)
+    assert yeast(client.get(f"/api/v1/batches/{plain}", headers=user_headers).json()) == (
+        None,
+        None,
+        None,
+    )
+    # The sensor's limits are valid bounds, and a single-temperature range is valid.
+    for low, high in ((-40, 125), (20, 20)):
+        res = client.patch(
+            url,
+            json={"yeast_min_temperature_c": low, "yeast_max_temperature_c": high},
+            headers=user_headers,
+        )
+        assert (res.status_code, yeast(res.json())[1:]) == (200, (low, high))
 
 
 def _ingest(
