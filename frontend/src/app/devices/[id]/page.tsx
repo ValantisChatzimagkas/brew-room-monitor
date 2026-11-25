@@ -11,7 +11,7 @@ import { ReadingTime } from "@/components/reading-time";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { type BatchDetail, findDevice, getApi } from "@/lib/api/client";
-import { parseId, parseRange, RANGES, rangeSince, READINGS_LIMIT, toPoints } from "@/lib/history";
+import { DEFAULT_RANGE, parseId, parseRange, RANGES, rangeSince, READINGS_LIMIT, toPoints } from "@/lib/history";
 import { METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
 import { formatAge } from "@/lib/time";
 
@@ -39,7 +39,7 @@ async function DeviceDetail({
   const id = parseId(rawId);
   if (id === null) notFound();
 
-  const range = parseRange((await searchParams).range);
+  const range = parseRange((await searchParams).range, RANGES, DEFAULT_RANGE);
 
   const api = await getApi(); // must come before new Date(): it opts the render out of prerendering
   const now = new Date();

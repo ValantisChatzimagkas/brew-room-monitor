@@ -15,7 +15,7 @@
 - Validate at the edge with Pydantic (`Field` bounds, `AwareDatetime`, `max_length` on lists/strings). Every list input has a max size.
 
 ## Security
-- Every query param or body that can grow has an upper bound (`Field(max_length=...)`, `Query(le=...)`); every list endpoint has a `limit`.
+- Every query param or body that can grow has an upper bound (`Field(max_length=...)`, `Query(le=...)`); every list endpoint bounds its rows: a `limit`, or a cap it rejects with 422 when cutting rows would mislead.
 - No `CORSMiddleware`: the browser never calls this API (the Next.js server does).
 - SQL only through SQLModel/SQLAlchemy expressions. If raw SQL is unavoidable, `text()` with bound params, never f-strings.
 - Never log request headers, tokens or token hashes. 401 responses stay generic (`_UNAUTHORIZED` in `app/deps.py`).

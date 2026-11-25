@@ -4,6 +4,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.conftest import post_readings
+
 
 def test_ingest_and_list(
     client: TestClient, device_headers: dict[str, str], user_headers: dict[str, str]
@@ -333,8 +335,22 @@ def test_batch_filter_composes_with_other_params(
     assert _days(client, user_headers, batch_id=batch, device_id=b_id) == []
 
 
-def test_unknown_batch_id_is_404(client: TestClient, user_headers: dict[str, str]) -> None:
-    res = client.get("/api/v1/readings", params={"batch_id": 999}, headers=user_headers)
+# Both routes that take a batch_id; the buckets route also needs its own required params.
+BATCH_ROUTES = pytest.mark.parametrize(
+    ("path", "extra"),
+    [
+        ("/api/v1/readings", {}),
+        # 1d: the batch below is open since 2026-01-10, too long for a finer bucket's cap.
+        ("/api/v1/readings/buckets", {"metric": "temperature_c", "bucket": "1d"}),
+    ],
+)
+
+
+@BATCH_ROUTES
+def test_unknown_batch_id_is_404(
+    client: TestClient, user_headers: dict[str, str], path: str, extra: dict[str, str]
+) -> None:
+    res = client.get(path, params={"batch_id": 999, **extra}, headers=user_headers)
     assert res.status_code == 404
 
 
@@ -364,20 +380,129 @@ def test_user_sees_only_readings_of_their_devices(
     assert _days(client, user_headers, device_id=alice_id) == [1]
 
 
+@BATCH_ROUTES
 def test_foreign_batch_id_is_404(
     client: TestClient,
     user_headers: dict[str, str],
     other_user_headers: dict[str, str],
     make_device: MakeDevice,
     make_batch: MakeBatch,
+    path: str,
+    extra: dict[str, str],
 ) -> None:
     device_id, token = make_device("alice-vessel")
     _ingest(client, token, "temperature_c", [15])
     batch = make_batch(device_id, _dt(10))
 
-    foreign = client.get("/api/v1/readings", params={"batch_id": batch}, headers=other_user_headers)
-    missing = client.get("/api/v1/readings", params={"batch_id": 999}, headers=other_user_headers)
+    foreign = client.get(path, params={"batch_id": batch, **extra}, headers=other_user_headers)
+    missing = client.get(path, params={"batch_id": 999, **extra}, headers=other_user_headers)
     assert foreign.status_code == 404
     assert (foreign.status_code, foreign.json()) == (missing.status_code, missing.json())
 
-    assert _days(client, user_headers, batch_id=batch) == [15]
+    owner = client.get(path, params={"batch_id": batch, **extra}, headers=user_headers)
+    assert owner.status_code == 200
+    assert len(owner.json()) == 1
+
+
+def _at(hhmm: str) -> datetime:
+    return datetime.fromisoformat(f"2026-01-10T{hhmm}:00+00:00")
+
+
+def _buckets(
+    client: TestClient, headers: dict[str, str], **params: str | int
+) -> list[tuple[datetime, float, float, float]]:
+    res = client.get("/api/v1/readings/buckets", params=params, headers=headers)
+    assert res.status_code == 200, res.json()
+    return [
+        (
+            datetime.fromisoformat(b["bucket_start"]),
+            b["avg_value"],
+            b["min_value"],
+            b["max_value"],
+        )
+        for b in res.json()
+    ]
+
+
+@pytest.fixture
+def bucketed_batch(
+    client: TestClient, make_device: MakeDevice, make_batch: MakeBatch
+) -> tuple[int, int]:
+    """A batch on device A from 10:05 to 12:00 on 2026-01-10, with readings in and around it.
+
+    Returns the batch id and device A's id.
+    """
+    a_id, a_headers = make_device("vessel-a")
+    _, b_headers = make_device("vessel-b")
+    post_readings(
+        client,
+        a_headers,
+        [
+            ("temperature_c", 99.0, _at("10:00")),  # before the batch starts
+            ("temperature_c", 10.0, _at("10:10")),
+            ("temperature_c", 14.0, _at("10:50")),
+            ("temperature_c", 12.0, _at("11:20")),
+            ("specific_gravity", 1.05, _at("10:30")),
+        ],
+    )
+    post_readings(client, b_headers, [("temperature_c", 50.0, _at("10:30"))])
+    return make_batch(a_id, _at("10:05"), _at("12:00")), a_id
+
+
+def test_buckets_aggregate_per_clock_aligned_bucket(
+    client: TestClient, user_headers: dict[str, str], bucketed_batch: tuple[int, int]
+) -> None:
+    batch, _ = bucketed_batch
+    # The first bucket starts at 10:00, before the batch, yet holds only in-window readings.
+    assert _buckets(client, user_headers, batch_id=batch, metric="temperature_c", bucket="1h") == [
+        (_at("10:00"), 12.0, 10.0, 14.0),
+        (_at("11:00"), 12.0, 12.0, 12.0),
+    ]
+
+
+def test_buckets_since_and_empty_window(
+    client: TestClient,
+    user_headers: dict[str, str],
+    bucketed_batch: tuple[int, int],
+    make_batch: MakeBatch,
+) -> None:
+    batch, device_id = bucketed_batch
+    params = {"metric": "temperature_c", "bucket": "1h"}
+    since_11 = _buckets(
+        client, user_headers, batch_id=batch, since=_at("11:00").isoformat(), **params
+    )
+    assert since_11 == [(_at("11:00"), 12.0, 12.0, 12.0)]
+    after_end = _buckets(
+        client, user_headers, batch_id=batch, since=_at("12:30").isoformat(), **params
+    )
+    assert after_end == []
+
+    empty = make_batch(device_id, _at("13:00"), _at("14:00"))  # no reading in its window
+    assert _buckets(client, user_headers, batch_id=empty, **params) == []
+
+
+def test_buckets_rejects_bad_requests(
+    client: TestClient,
+    user_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+) -> None:
+    device_id, _ = make_device("vessel-a")
+    end = _dt(31)
+    batch = make_batch(device_id, _dt(1), end)
+    fits = end - 4999 * timedelta(minutes=5)  # exactly MAX_BUCKETS 5-minute buckets
+    base: dict[str, str | int] = {"batch_id": batch, "metric": "temperature_c", "bucket": "15m"}
+    cases: list[tuple[dict[str, str | int], int]] = [
+        ({**base, "bucket": "2m"}, 422),
+        ({k: v for k, v in base.items() if k != "bucket"}, 422),
+        ({k: v for k, v in base.items() if k != "metric"}, 422),
+        ({k: v for k, v in base.items() if k != "batch_id"}, 422),
+        ({**base, "since": "2026-01-10T00:00:00"}, 422),  # naive
+        ({**base, "bucket": "5m"}, 422),  # whole window: 8641 buckets
+        (base, 200),
+        ({**base, "bucket": "5m", "since": fits.isoformat()}, 200),
+        ({**base, "bucket": "5m", "since": (fits - timedelta(seconds=1)).isoformat()}, 422),
+    ]
+    for params, expected in cases:
+        res = client.get("/api/v1/readings/buckets", params=params, headers=user_headers)
+        assert res.status_code == expected, params
