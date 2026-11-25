@@ -232,8 +232,8 @@ class MetricSummary(SQLModel):
 class YeastFit(SQLModel):
     """Whole seconds the batch's temperature_c readings spent below, inside, above its yeast range.
 
-    Each reading spans until the next one in the window, capped; the newest counts zero. Bounds
-    are inside.
+    Each reading spans until the next one in the window, capped at 1 h; the newest counts zero.
+    Bounds are inside.
     """
 
     below_s: int

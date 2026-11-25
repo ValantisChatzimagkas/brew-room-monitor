@@ -1605,7 +1605,7 @@
           "above_s"
         ],
         "title": "YeastFit",
-        "description": "Whole seconds the batch's temperature_c readings spent below, inside, above its yeast range.\n\nEach reading spans until the next one in the window, capped; the newest counts zero. Bounds\nare inside."
+        "description": "Whole seconds the batch's temperature_c readings spent below, inside, above its yeast range.\n\nEach reading spans until the next one in the window, capped at 1 h; the newest counts zero.\nBounds are inside."
       }
     },
     "securitySchemes": {
