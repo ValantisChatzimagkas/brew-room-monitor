@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query, status
 from sqlmodel import col, select
 
-from app.deps import ScopeDep, SessionDep, UserDep, owned, save_or_conflict
+from app.deps import SessionDep, UserDep, owned, save_or_conflict
 from app.models import Location, LocationCreate, LocationPublic
 
 router = APIRouter(prefix="/locations", tags=["locations"])
@@ -11,9 +11,9 @@ router = APIRouter(prefix="/locations", tags=["locations"])
 
 @router.get("")
 def list_locations(
-    session: SessionDep, scope: ScopeDep, limit: Annotated[int, Query(ge=1, le=500)] = 100
+    session: SessionDep, user: UserDep, limit: Annotated[int, Query(ge=1, le=500)] = 100
 ) -> list[LocationPublic]:
-    query = owned(select(Location), col(Location.owner_id), scope)
+    query = owned(select(Location), col(Location.owner_id), user)
     locations = session.exec(query.order_by(col(Location.name)).limit(limit)).all()
     return [LocationPublic.model_validate(loc) for loc in locations]
 

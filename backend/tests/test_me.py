@@ -15,7 +15,7 @@ from app import oidc
 from app.config import Settings, get_settings
 from app.main import app
 from app.models import User
-from tests.conftest import ADMIN_TOKEN, AUDIENCE, FakeIssuer
+from tests.conftest import AUDIENCE, LEFTOVER_ADMIN_TOKEN, FakeIssuer
 
 ME = "/api/v1/me"
 
@@ -109,7 +109,7 @@ def _bad_authorization(
         "missing sub": make_user_token(sub=None),
         "empty sub": make_user_token(sub=""),
         "256-char sub": make_user_token(sub="x" * 256),
-        "admin token": ADMIN_TOKEN,
+        "former admin token": LEFTOVER_ADMIN_TOKEN,
         "not a jwt": "nope",
     }
     headers = {name: {"Authorization": f"Bearer {token}"} for name, token in tokens.items()}
@@ -138,7 +138,7 @@ def test_user_routes_fail_closed_without_auth_config(
     client: TestClient, user_headers: dict[str, str]
 ) -> None:
     app.dependency_overrides[get_settings] = lambda: Settings(
-        environment="test", admin_token=ADMIN_TOKEN, auth_issuer=None, auth_audience=None
+        environment="test", auth_issuer=None, auth_audience=None
     )
     assert client.get(ME, headers=user_headers).status_code == 401
 

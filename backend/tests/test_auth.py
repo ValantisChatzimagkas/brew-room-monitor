@@ -5,6 +5,7 @@ from fastapi.routing import iter_route_contexts
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.conftest import LEFTOVER_ADMIN_TOKEN
 
 # Public on purpose. `/docs/oauth2-redirect` is registered by FastAPI together with `/docs`;
 # we use bearer auth, so it is never used.
@@ -18,16 +19,13 @@ USER_ROUTES = {
     ("POST", "/api/v1/devices/{device_id}/rotate"),
     ("POST", "/api/v1/batches"),
     ("PATCH", "/api/v1/batches/{batch_id}"),
-}
-# Owner-scoped reads: a user sees their own rows, the admin token everything.
-USER_OR_ADMIN_ROUTES = {
     ("GET", "/api/v1/devices"),
     ("GET", "/api/v1/locations"),
     ("GET", "/api/v1/readings"),
     ("GET", "/api/v1/batches"),
     ("GET", "/api/v1/batches/{batch_id}"),
 }
-# No route is admin-only: one listed in no table must reject every token kind.
+# A route listed in no table must reject every token kind.
 DEVICE_ROUTES = {("POST", "/api/v1/readings")}
 
 
@@ -48,18 +46,17 @@ def _allowed_kinds(method: str, path: str) -> set[str]:
     route = (method, path)
     if route in USER_ROUTES:
         return {"user"}
-    if route in USER_OR_ADMIN_ROUTES:
-        return {"user", "admin"}
     return {"device"} if route in DEVICE_ROUTES else set()
 
 
 def test_every_route_requires_its_token(
     client: TestClient,
-    admin_headers: dict[str, str],
     device_headers: dict[str, str],
     user_headers: dict[str, str],
 ) -> None:
-    own_headers = {"admin": admin_headers, "device": device_headers, "user": user_headers}
+    own_headers = {"device": device_headers, "user": user_headers}
+    unknown_401 = client.get("/api/v1/me", headers={"Authorization": "Bearer nope"})
+    assert unknown_401.status_code == 401
     routes = _protected_routes()
     assert routes, "no routes found; the route walk is broken"
 
@@ -71,9 +68,11 @@ def test_every_route_requires_its_token(
         for label, headers in (
             ("no token", {}),
             ("unknown token", {"Authorization": "Bearer nope"}),
+            ("former admin token", {"Authorization": f"Bearer {LEFTOVER_ADMIN_TOKEN}"}),
             *((f"{k} token", h) for k, h in wrong_kinds.items()),
         ):
             res = client.request(method, url, json={}, headers=headers)
             assert res.status_code == 401, (
                 f"{method} {path} with {label} returned {res.status_code}"
             )
+            assert res.json() == unknown_401.json(), f"{method} {path} with {label}"

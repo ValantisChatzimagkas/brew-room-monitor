@@ -32,13 +32,11 @@ def test_rejects_bad_names(client: TestClient, user_headers: dict[str, str]) -> 
         assert res.status_code == expected, name
 
 
-def test_list_limit(
-    client: TestClient, admin_headers: dict[str, str], user_headers: dict[str, str]
-) -> None:
+def test_list_limit(client: TestClient, user_headers: dict[str, str]) -> None:
     for name in ("a", "b"):
         client.post("/api/v1/locations", json={"name": name}, headers=user_headers)
-    res = client.get("/api/v1/locations", params={"limit": 1}, headers=admin_headers)
+    res = client.get("/api/v1/locations", params={"limit": 1}, headers=user_headers)
     assert [loc["name"] for loc in res.json()] == ["a"]
     for limit in (0, 501):
-        res = client.get("/api/v1/locations", params={"limit": limit}, headers=admin_headers)
+        res = client.get("/api/v1/locations", params={"limit": limit}, headers=user_headers)
         assert res.status_code == 422, limit

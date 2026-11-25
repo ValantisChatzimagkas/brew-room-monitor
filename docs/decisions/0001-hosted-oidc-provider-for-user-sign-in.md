@@ -21,7 +21,7 @@ Use Auth0 as the OIDC provider. The backend verifies RS256 access tokens against
 
 ### Devices and the admin token
 - Devices keep their opaque per-device tokens (SHA-256 hash lookup, revoke/rotate). No JWT: flashed devices cannot be updated and cannot run expiry or refresh logic.
-- The admin token is transitional. Once owner scoping ships, locations are created, and devices are registered, updated, revoked and rotated, only with a user JWT, so every device has an owner; an admin call carries no user and would need an act-as-user path, which is roles and out of scope. The frontend login (SOL-14) moved the dashboard to user tokens, so the admin token no longer has a frontend caller; it still keeps the unscoped devices, locations, readings and batches reads (a batch by id too) until it is dropped from them.
+- The admin token was transitional, and SOL-124 retired it once the frontend login (SOL-14) left it no caller. Every read and write now needs a user JWT, so every device has an owner; an operator path that reads across owners would be roles, out of scope.
 
 ### Env vars (names only, never values)
 - Backend: `AUTH_ISSUER` (must equal the token's `iss` exactly, trailing slash included; Auth0's ends in `/`) and `AUTH_AUDIENCE`. The JWKS URL comes from the issuer's OIDC discovery document, so there is no JWKS var. RS256 is a code constant, not env, so a token cannot choose its own algorithm. The backend holds no password or signing secret.

@@ -21,7 +21,7 @@ FastAPI, SQLModel, Alembic and Postgres on the backend; Next.js, Tailwind and sh
 Needs Docker, [uv](https://docs.astral.sh/uv/), Node 22 + pnpm.
 
 ```sh
-make setup                      # .env from .env.example, with a generated ADMIN_TOKEN
+make setup                      # .env from .env.example
 make dev                        # Postgres + API (:8000/docs) + frontend (:3000); Ctrl-C stops the servers, Postgres stays up
 ```
 
