@@ -11,7 +11,16 @@ import { ReadingTime } from "@/components/reading-time";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { type BatchDetail, findDevice, getApi } from "@/lib/api/client";
-import { DEFAULT_RANGE, parseId, parseRange, RANGES, rangeSince, READINGS_LIMIT, toPoints } from "@/lib/history";
+import {
+  blockingBatch,
+  DEFAULT_RANGE,
+  parseId,
+  parseRange,
+  RANGES,
+  rangeSince,
+  READINGS_LIMIT,
+  toPoints,
+} from "@/lib/history";
 import { METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
 import { formatAge } from "@/lib/time";
 
@@ -100,20 +109,22 @@ async function DeviceDetail({
       <section className="mt-8">
         <h2 className="mb-3 text-lg font-medium">Batches</h2>
         <Suspense fallback={<p className="text-muted-foreground">Loading batches…</p>}>
-          <DeviceBatches deviceId={id} now={now} />
+          <DeviceBatches deviceId={id} now={now} revoked={device.revoked_at !== null} />
         </Suspense>
       </section>
     </>
   );
 }
 
-async function DeviceBatches({ deviceId, now }: { deviceId: number; now: Date }) {
+async function DeviceBatches({ deviceId, now, revoked }: { deviceId: number; now: Date; revoked: boolean }) {
   const api = await getApi();
   const list = await api.GET("/api/v1/batches", {
     params: { query: { device_id: deviceId, limit: BATCHES_LIMIT } },
   });
   if (list.error) throw new Error("Failed to load data from the API");
-  if (list.data.length === 0) return <p className="text-muted-foreground">No batches yet</p>;
+  // Only the newest rows: more than 9 voided batches newer than a running one would show the link wrongly,
+  // and the new-batch page then says the batch is running.
+  const canStart = !revoked && blockingBatch(list.data)?.ended_at !== null;
 
   const batches = await Promise.all(
     list.data.map(async ({ id }) => {
@@ -125,6 +136,14 @@ async function DeviceBatches({ deviceId, now }: { deviceId: number; now: Date })
 
   return (
     <>
+      {canStart && (
+        <div className="mb-3">
+          <Link href={`/devices/${deviceId}/batches/new`} className={buttonVariants({ size: "sm" })}>
+            Start batch
+          </Link>
+        </div>
+      )}
+      {batches.length === 0 && <p className="text-muted-foreground">No batches yet</p>}
       {batches.length === BATCHES_LIMIT && (
         <p className="mb-2 text-sm text-muted-foreground">Showing the newest {BATCHES_LIMIT} batches.</p>
       )}
