@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatAge, formatDuration, isStale, STALE_AFTER_MS } from "./time";
+import { chartTickFormat, formatAge, formatDuration, isStale, STALE_AFTER_MS } from "./time";
 
 const now = new Date("2026-01-01T12:00:00Z");
 const ago = (ms: number) => new Date(now.getTime() - ms);
@@ -57,5 +57,20 @@ describe("formatDuration", () => {
     ["14 d", 14 * D_S, "14 d"],
   ])("%s", (_, seconds, expected) => {
     expect(formatDuration(seconds)).toBe(expected);
+  });
+});
+
+describe("chartTickFormat", () => {
+  const time = { hour: "2-digit", minute: "2-digit" };
+  const dayAndTime = { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" };
+
+  it.each([
+    ["6 h", 6 * H, time],
+    ["exactly 24 h", 24 * H, time],
+    ["24 h + 1 ms", 24 * H + 1, dayAndTime],
+    ["36 h", 36 * H, dayAndTime],
+    ["14 days", 14 * D, dayAndTime],
+  ])("%s", (_, spanMs, expected) => {
+    expect(chartTickFormat(spanMs)).toEqual(expected);
   });
 });

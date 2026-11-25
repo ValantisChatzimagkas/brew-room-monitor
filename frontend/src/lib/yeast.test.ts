@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { yeastSplit } from "./yeast";
+import { yeastPosition, yeastSplit } from "./yeast";
 
 describe("yeastSplit", () => {
   it.each([
@@ -15,5 +15,20 @@ describe("yeastSplit", () => {
       { label: "inside", seconds: inside_s, flagged: flagged[1] },
       { label: "above", seconds: above_s, flagged: flagged[2] },
     ]);
+  });
+});
+
+describe("yeastPosition", () => {
+  it.each([
+    [{ min: 18, max: 22 }, 17.9, "below"],
+    [{ min: 18, max: 22 }, 18, "inside"],
+    [{ min: 18, max: 22 }, 20, "inside"],
+    [{ min: 18, max: 22 }, 22, "inside"],
+    [{ min: 18, max: 22 }, 22.1, "above"],
+    [{ min: 20, max: 20 }, 20, "inside"],
+    [{ min: 20, max: 20 }, 19.9, "below"],
+    [{ min: 20, max: 20 }, 20.1, "above"],
+  ])("%j, %d -> %s", (range, value, expected) => {
+    expect(yeastPosition(value, range)).toBe(expected);
   });
 });

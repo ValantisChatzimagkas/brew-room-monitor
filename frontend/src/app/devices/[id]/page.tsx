@@ -3,16 +3,17 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
+import { BatchSummaryTable } from "@/components/batch-summary-table";
+import { BatchYeast } from "@/components/batch-yeast";
 import { MetricChart } from "@/components/metric-chart";
+import { PartialNotice } from "@/components/partial-notice";
 import { ReadingTime } from "@/components/reading-time";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { type BatchDetail, getApi } from "@/lib/api/client";
-import { isPartial, parseDeviceId, parseRange, RANGES, rangeSince, READINGS_LIMIT, toPoints } from "@/lib/history";
-import { formatValue, inMetricOrder, METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
-import { formatAge, formatDuration } from "@/lib/time";
-import { yeastSplit } from "@/lib/yeast";
+import { type BatchDetail, findDevice, getApi } from "@/lib/api/client";
+import { parseId, parseRange, RANGES, rangeSince, READINGS_LIMIT, toPoints } from "@/lib/history";
+import { METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
+import { formatAge } from "@/lib/time";
 
 const BATCHES_LIMIT = 10;
 
@@ -35,7 +36,7 @@ async function DeviceDetail({
   searchParams,
 }: Pick<PageProps<"/devices/[id]">, "params" | "searchParams">) {
   const { id: rawId } = await params;
-  const id = parseDeviceId(rawId);
+  const id = parseId(rawId);
   if (id === null) notFound();
 
   const range = parseRange((await searchParams).range);
@@ -43,10 +44,7 @@ async function DeviceDetail({
   const api = await getApi(); // must come before new Date(): it opts the render out of prerendering
   const now = new Date();
   const since = rangeSince(range, now);
-  // No GET /devices/{id}: list at the route's max limit and find. A device beyond the first 500 by name 404s.
-  const devices = await api.GET("/api/v1/devices", { params: { query: { limit: 500 } } });
-  if (devices.error) throw new Error("Failed to load data from the API");
-  const device = devices.data.find((d) => d.id === id);
+  const device = await findDevice(id);
   if (!device) notFound();
 
   const results = await Promise.all(
@@ -92,11 +90,7 @@ async function DeviceDetail({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {isPartial(rows.length) && (
-                  <p className="mb-2 text-sm text-stale">
-                    Partial: showing only the newest {READINGS_LIMIT} readings in this range.
-                  </p>
-                )}
+                <PartialNotice count={rows.length} where="in this range" />
                 <MetricChart metric={metric} points={toPoints(rows)} from={since.getTime()} to={now.getTime()} />
               </CardContent>
             </Card>
@@ -148,7 +142,11 @@ function BatchCard({ batch, now }: { batch: BatchDetail; now: Date }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between gap-2">
-          <h3>{batch.name}</h3>
+          <h3>
+            <Link href={`/batches/${batch.id}`} className="hover:underline">
+              {batch.name}
+            </Link>
+          </h3>
           {batch.ended_at === null && <span className="text-sm font-normal text-primary">Running</span>}
         </CardTitle>
         <CardDescription>
@@ -164,71 +162,13 @@ function BatchCard({ batch, now }: { batch: BatchDetail; now: Date }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="mb-4 text-sm">
-          <YeastLine batch={batch} />
-          {batch.yeast_fit !== null && (
-            <p className="tabular-nums">
-              {yeastSplit(batch.yeast_fit).map((item, i) => (
-                <span key={item.label}>
-                  {i > 0 && " · "}
-                  <span className={item.flagged ? "font-medium text-out-of-range" : undefined}>
-                    {formatDuration(item.seconds)} {item.label}
-                  </span>
-                </span>
-              ))}
-            </p>
-          )}
-        </div>
+        <BatchYeast batch={batch} />
         {batch.metrics.length === 0 ? (
           <p className="text-sm text-muted-foreground">No readings in this batch&apos;s window.</p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Metric</TableHead>
-                <TableHead>Min</TableHead>
-                <TableHead>Max</TableHead>
-                <TableHead>Average</TableHead>
-                <TableHead>Latest</TableHead>
-                <TableHead>Readings</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {inMetricOrder(batch.metrics).map((m) => (
-                <TableRow key={m.metric}>
-                  <TableCell>{METRIC_INFO[m.metric].label}</TableCell>
-                  <TableCell className="tabular-nums">{formatValue(m.metric, m.min_value)}</TableCell>
-                  <TableCell className="tabular-nums">{formatValue(m.metric, m.max_value)}</TableCell>
-                  <TableCell className="tabular-nums">{formatValue(m.metric, m.avg_value)}</TableCell>
-                  <TableCell className="tabular-nums">
-                    {formatValue(m.metric, m.latest_value)}{" "}
-                    <span className="text-muted-foreground">
-                      <ReadingTime iso={m.latest_recorded_at}>{formatAge(new Date(m.latest_recorded_at), now)}</ReadingTime>
-                    </span>
-                  </TableCell>
-                  <TableCell className="tabular-nums">{m.count}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <BatchSummaryTable metrics={batch.metrics} now={now} />
         )}
       </CardContent>
     </Card>
   );
-}
-
-function YeastLine({ batch }: { batch: BatchDetail }) {
-  // Optional in the generated type (the fields have defaults), though the API always sends them.
-  const name = batch.yeast_name ?? null;
-  const min = batch.yeast_min_temperature_c ?? null;
-  const max = batch.yeast_max_temperature_c ?? null;
-  if (min !== null && max !== null) {
-    return (
-      <p>
-        Yeast: {name ?? "unnamed"} · {formatValue("temperature_c", min)} – {formatValue("temperature_c", max)}
-      </p>
-    );
-  }
-  if (name !== null) return <p>Yeast: {name} · no temperature range set</p>;
-  return <p className="text-muted-foreground">No yeast set</p>;
 }

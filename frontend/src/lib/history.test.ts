@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isPartial, parseDeviceId, parseRange, rangeSince, toPoints } from "./history";
+import { breakGaps, type ChartPoint, isIsolated, isPartial, parseId, parseRange, rangeSince, toPoints } from "./history";
 
 describe("parseRange", () => {
   it.each([
@@ -28,7 +28,7 @@ describe("rangeSince", () => {
   });
 });
 
-describe("parseDeviceId", () => {
+describe("parseId", () => {
   it.each([
     ["12", 12],
     ["abc", null],
@@ -38,8 +38,11 @@ describe("parseDeviceId", () => {
     ["1e3", null],
     ["0x1", null],
     [" 12", null],
+    ["2147483647", 2147483647],
+    ["2147483648", null],
+    ["1000000000000000000000", null],
   ])("%j -> %s", (raw, expected) => {
-    expect(parseDeviceId(raw)).toBe(expected);
+    expect(parseId(raw)).toBe(expected);
   });
 });
 
@@ -71,5 +74,44 @@ describe("isPartial", () => {
     [5001, true],
   ])("%d rows -> %s", (count, expected) => {
     expect(isPartial(count)).toBe(expected);
+  });
+});
+
+const MIN = 60_000;
+const at = (...minutes: number[]): ChartPoint[] => minutes.map((m, i) => ({ time: m * MIN, value: i }));
+const gap = (minute: number) => ({ time: minute * MIN, value: null });
+
+describe("breakGaps", () => {
+  it.each([
+    ["no points", [], []],
+    ["one point", at(0), at(0)],
+    ["two points", at(0, 10), at(0, 10)],
+    ["regular 1-minute points", at(0, 1, 2, 3), at(0, 1, 2, 3)],
+    ["one 10-minute gap", at(0, 1, 2, 12, 13), [...at(0, 1, 2), gap(7), ...at(0, 1, 2, 12, 13).slice(3)]],
+    ["gap exactly 3x the median", at(0, 1, 2, 5, 6), at(0, 1, 2, 5, 6)],
+    [
+      "duplicate timestamps are ignored",
+      at(0, 0, 1, 1, 2, 2, 12),
+      [...at(0, 0, 1, 1, 2, 2), gap(7), ...at(0, 0, 1, 1, 2, 2, 12).slice(6)],
+    ],
+    ["all points share one timestamp", at(5, 5, 5), at(5, 5, 5)],
+  ])("%s", (_, points, expected) => {
+    const input = structuredClone(points);
+    expect(breakGaps(points)).toEqual(expected);
+    expect(points).toEqual(input);
+  });
+});
+
+describe("isIsolated", () => {
+  const [a, b, c] = at(0, 1, 2);
+  it.each([
+    ["one point", [a], 0, true],
+    ["two adjacent points", [a, b], 0, false],
+    ["a point between two gaps", [a, gap(1), b, gap(3), c], 2, true],
+    ["first point followed by a gap", [a, gap(1), b, c], 0, true],
+    ["last point after a gap", [a, b, gap(3), c], 3, true],
+    ["a gap point", [a, gap(1), b], 1, false],
+  ])("%s", (_, points, i, expected) => {
+    expect(isIsolated(points, i)).toBe(expected);
   });
 });
