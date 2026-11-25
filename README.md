@@ -25,7 +25,7 @@ make setup                      # .env from .env.example
 make dev                        # Postgres + API (:8000/docs) + frontend (:3000); Ctrl-C stops the servers, Postgres stays up
 ```
 
-The dashboard needs an Auth0 tenant: a Regular Web Application (callback `<APP_BASE_URL>/auth/callback`, logout URL `<APP_BASE_URL>`) and an API whose identifier is `AUTH_AUDIENCE`. Put their values in `.env` (names in `.env.example`; background in [ADR 0001](docs/decisions/0001-hosted-oidc-provider-for-user-sign-in.md)); there is no dev bypass.
+The dashboard needs an Auth0 tenant: a Regular Web Application (callback `<APP_BASE_URL>/auth/callback`, logout URL `<APP_BASE_URL>`) and an API whose identifier is `AUTH_AUDIENCE`. Put their values in `.env` (names in `.env.example`; background in [ADR 0001](docs/decisions/0001-hosted-oidc-provider-for-user-sign-in.md)); there is no dev bypass: `make dev`, `make dev-frontend` and `make up` refuse to start and name any that are missing.
 
 Run the pieces in separate terminals with `make db`, `make dev-backend` and `make dev-frontend`. Full stack in containers: `make up`. All targets: `make help`.
 

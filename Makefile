@@ -1,7 +1,7 @@
 # `dev` needs `wait -n` (bash >= 4.3; macOS ships 3.2, install a newer bash) and job control; /bin/sh may be dash.
 SHELL := bash
 
-.PHONY: help setup db dev dev-backend dev-frontend api-types check-api-types migration migrate check check-backend check-frontend audit up down logs db-reset smoke
+.PHONY: help setup db dev dev-backend dev-frontend api-types check-api-types migration migrate check check-backend check-frontend audit auth-env up down logs db-reset smoke
 
 # Root .env is the only env file: its values reach every recipe (dev-*, check-*, up, smoke).
 # Inside make the file wins over a same-named shell variable; write values unquoted (Makefile syntax).
@@ -26,7 +26,7 @@ db:            ## start Postgres only, wait until it accepts connections
 # One process group per server (set -m), so the kill also reaches the reloader's worker and next-server.
 # Under set -m a terminal Ctrl-C or hangup reaches only make's own group, hence the traps. No set -e:
 # a failing `wait -n` must not skip killing the survivor. Postgres stays up: `make down` stops it.
-dev: db        ## Postgres + API + frontend with reload; Ctrl-C stops both servers
+dev: auth-env db  ## Postgres + API + frontend with reload; Ctrl-C stops both servers
 	@set -m; \
 	stop() { trap '' INT TERM HUP; kill -TERM -$$api -$$web 2>/dev/null; wait; exit $$1; }; \
 	trap 'stop 130' INT; trap 'stop 143' TERM; trap 'stop 129' HUP; \
@@ -37,8 +37,16 @@ dev: db        ## Postgres + API + frontend with reload; Ctrl-C stops both serve
 dev-backend:   ## API with reload on :8000
 	cd backend && uv run alembic upgrade head && uv run fastapi dev
 
-dev-frontend:  ## Next.js on :3000
+dev-frontend: auth-env  ## Next.js on :3000
 	cd frontend && pnpm dev
+
+# Sign-in has no dev bypass and can't work with any of these unset (the dashboard 500s or the backend
+# won't boot), so refuse to start.
+# APP_BASE_URL is left out: the SDK falls back to the request's host.
+AUTH_ENV := AUTH_ISSUER AUTH_AUDIENCE AUTH0_DOMAIN AUTH0_CLIENT_ID AUTH0_CLIENT_SECRET AUTH0_SECRET
+auth-env:
+	@missing="$(strip $(foreach v,$(AUTH_ENV),$(if $($(v)),,$(v))))"; \
+	[ -z "$$missing" ] || { echo "Missing in .env: $$missing. The dashboard needs an Auth0 tenant: see README.md, Quick start." >&2; exit 1; }
 
 OPENAPI ?= frontend/openapi.json
 SCHEMA ?= frontend/src/lib/api/schema.d.ts
@@ -71,7 +79,7 @@ audit:         ## known CVEs in runtime deps (own CI workflow, not part of `chec
 	cd backend && uv export --locked --no-dev --no-emit-project -q | uvx pip-audit@2.10.1 -r /dev/stdin --disable-pip --strict
 	cd frontend && pnpm audit --prod --audit-level=high
 
-up:            ## full stack in Docker
+up: auth-env   ## full stack in Docker
 	docker compose up --build
 
 down:          ## stop the compose stack (keeps the database volume)
