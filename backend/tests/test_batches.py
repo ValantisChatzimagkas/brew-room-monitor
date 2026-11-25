@@ -342,6 +342,39 @@ def test_get_unknown_batch_is_404(client: TestClient, admin_headers: dict[str, s
     assert client.get("/api/v1/batches/999", headers=admin_headers).status_code == 404
 
 
+def test_list_filters_by_device(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
+    other_user_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+) -> None:
+    a, _ = make_device("vessel-a")
+    b, _ = make_device("vessel-b")
+    a_closed = make_batch(a, JAN_1, JAN_5)
+    a_open = make_batch(a, JAN_10)
+    b_batch = make_batch(b, JAN_12)  # newest overall, so a `limit` before the filter shows
+    bob_device = client.post(
+        "/api/v1/devices",
+        json={"name": "vessel-c", "kind": "in_vessel"},
+        headers=other_user_headers,
+    ).json()["id"]
+    bob_batch = make_batch(bob_device, JAN_1, headers=other_user_headers)
+
+    for headers, params, expected in (
+        (user_headers, {"device_id": a}, [a_open, a_closed]),
+        (user_headers, {"device_id": b}, [b_batch]),
+        (user_headers, {"device_id": a, "limit": 1}, [a_open]),
+        (user_headers, {"device_id": bob_device}, []),  # foreign answers like unknown
+        (user_headers, {"device_id": 999}, []),
+        (admin_headers, {"device_id": bob_device}, [bob_batch]),
+    ):
+        res = client.get("/api/v1/batches", params=params, headers=headers)
+        assert res.status_code == 200, params
+        assert [batch["id"] for batch in res.json()] == expected, params
+
+
 def test_owners_cannot_see_each_others_batches(
     client: TestClient,
     admin_headers: dict[str, str],
