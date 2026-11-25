@@ -89,22 +89,20 @@ db-reset:      ## wipe the dev database volume (asks first)
 
 # Own compose project, so a run never touches the dev stack's volume. Host ports are shared with
 # the dev stack: stop it first (a clash fails fast with "port is already allocated").
-# The frontend's `/` returns 200 even when its backend call fails, so the page must show the
-# seeded device. Registering one needs a user JWT and compose has no issuer, so the seed goes
-# through psql: a user plus a device they own. The device token is generated here and never
-# printed; its hash must match `hash_token` in backend/app/security.py.
+# Dummy Auth0 values: nothing here talks to a tenant. AUTH_ISSUER is set too because the backend refuses
+# to boot with only one of AUTH_ISSUER / AUTH_AUDIENCE. No signed-in path is covered (no fake issuer in
+# compose); the frontend's own checks are the redirect for anonymous visitors and a reachable backend.
 smoke:         ## build the images, boot the compose stack, assert it works end to end (needs ports 3000/8000/5432 free)
 	@set -e; \
-	export COMPOSE_PROJECT_NAME=brew-smoke ADMIN_TOKEN=$${ADMIN_TOKEN:-smoke-token}; \
+	export COMPOSE_PROJECT_NAME=brew-smoke ADMIN_TOKEN=$${ADMIN_TOKEN:-smoke-token} \
+	  AUTH0_DOMAIN=smoke.invalid AUTH0_CLIENT_ID=smoke AUTH0_CLIENT_SECRET=smoke \
+	  AUTH0_SECRET=$$(python3 -c "import secrets; print(secrets.token_hex(32))") APP_BASE_URL=http://localhost:3000 \
+	  AUTH_AUDIENCE=https://smoke.invalid/api AUTH_ISSUER=https://smoke.invalid/; \
 	trap 'rc=$$?; set +e; if [ $$rc -ne 0 ]; then docker compose ps -a; docker compose logs; fi; docker compose down -v --remove-orphans; exit $$rc' EXIT; \
 	trap 'exit 130' INT; trap 'exit 143' TERM; \
 	docker compose up --build --wait; \
 	curl -fsS http://localhost:8000/health >/dev/null; \
-	hash=$$(python3 -c "import hashlib, secrets; print(hashlib.sha256(secrets.token_urlsafe(32).encode()).hexdigest())"); \
-	docker compose exec -T db psql -U brew -d brew -v ON_ERROR_STOP=1 -q -v hash=$$hash <<< " \
-	  WITH u AS (INSERT INTO app_user (issuer, subject, created_at) VALUES ('smoke', 'smoke', now()) RETURNING id) \
-	  INSERT INTO device (name, kind, token_hash, owner_id, created_at) \
-	  SELECT 'smoke-device', 'in_vessel', :'hash', id, now() FROM u;" >/dev/null; \
-	page=$$(curl -fsS http://localhost:3000/); \
-	case "$$page" in *smoke-device*) ;; *) echo "smoke: frontend page is missing smoke-device"; exit 1;; esac; \
+	anon=$$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' http://localhost:3000/); \
+	case "$$anon" in "307 "*/auth/login*) ;; *) echo "smoke: anonymous GET / should redirect to sign-in, got: $$anon"; exit 1;; esac; \
+	docker compose exec -T frontend sh -c 'wget -q -O /dev/null "$$API_URL/health"'; \
 	echo "smoke: ok"

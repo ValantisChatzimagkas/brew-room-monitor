@@ -4,11 +4,16 @@ import { Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
 import { MetricChart } from "@/components/metric-chart";
+import { ReadingTime } from "@/components/reading-time";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getApi } from "@/lib/api/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { type BatchDetail, getApi } from "@/lib/api/client";
 import { isPartial, parseDeviceId, parseRange, RANGES, rangeSince, READINGS_LIMIT, toPoints } from "@/lib/history";
-import { METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
+import { formatValue, inMetricOrder, METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
+import { formatAge } from "@/lib/time";
+
+const BATCHES_LIMIT = 10;
 
 export default function DevicePage({ params, searchParams }: PageProps<"/devices/[id]">) {
   return (
@@ -97,6 +102,101 @@ async function DeviceDetail({
           ))}
         </div>
       )}
+      <section className="mt-8">
+        <h2 className="mb-3 text-lg font-medium">Batches</h2>
+        <Suspense fallback={<p className="text-muted-foreground">Loading batches…</p>}>
+          <DeviceBatches deviceId={id} now={now} />
+        </Suspense>
+      </section>
     </>
+  );
+}
+
+async function DeviceBatches({ deviceId, now }: { deviceId: number; now: Date }) {
+  const api = await getApi();
+  const list = await api.GET("/api/v1/batches", {
+    params: { query: { device_id: deviceId, limit: BATCHES_LIMIT } },
+  });
+  if (list.error) throw new Error("Failed to load data from the API");
+  if (list.data.length === 0) return <p className="text-muted-foreground">No batches yet</p>;
+
+  const batches = await Promise.all(
+    list.data.map(async ({ id }) => {
+      const result = await api.GET("/api/v1/batches/{batch_id}", { params: { path: { batch_id: id } } });
+      if (result.error) throw new Error("Failed to load data from the API");
+      return result.data;
+    }),
+  );
+
+  return (
+    <>
+      {batches.length === BATCHES_LIMIT && (
+        <p className="mb-2 text-sm text-muted-foreground">Showing the newest {BATCHES_LIMIT} batches.</p>
+      )}
+      <div className="grid gap-6">
+        {batches.map((batch) => (
+          <BatchCard key={batch.id} batch={batch} now={now} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function BatchCard({ batch, now }: { batch: BatchDetail; now: Date }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between gap-2">
+          <h3>{batch.name}</h3>
+          {batch.ended_at === null && <span className="text-sm font-normal text-primary">Running</span>}
+        </CardTitle>
+        <CardDescription>
+          Started <ReadingTime iso={batch.started_at}>{formatAge(new Date(batch.started_at), now)}</ReadingTime>
+          {batch.ended_at === null ? (
+            " · running"
+          ) : (
+            <>
+              {" · ended "}
+              <ReadingTime iso={batch.ended_at}>{formatAge(new Date(batch.ended_at), now)}</ReadingTime>
+            </>
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {batch.metrics.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No readings in this batch&apos;s window.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Metric</TableHead>
+                <TableHead>Min</TableHead>
+                <TableHead>Max</TableHead>
+                <TableHead>Average</TableHead>
+                <TableHead>Latest</TableHead>
+                <TableHead>Readings</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {inMetricOrder(batch.metrics).map((m) => (
+                <TableRow key={m.metric}>
+                  <TableCell>{METRIC_INFO[m.metric].label}</TableCell>
+                  <TableCell className="tabular-nums">{formatValue(m.metric, m.min_value)}</TableCell>
+                  <TableCell className="tabular-nums">{formatValue(m.metric, m.max_value)}</TableCell>
+                  <TableCell className="tabular-nums">{formatValue(m.metric, m.avg_value)}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {formatValue(m.metric, m.latest_value)}{" "}
+                    <span className="text-muted-foreground">
+                      <ReadingTime iso={m.latest_recorded_at}>{formatAge(new Date(m.latest_recorded_at), now)}</ReadingTime>
+                    </span>
+                  </TableCell>
+                  <TableCell className="tabular-nums">{m.count}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 }

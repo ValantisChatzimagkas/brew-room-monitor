@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { formatValue, METRIC_INFO, METRIC_ORDER } from "./metrics";
+import type { Metric } from "@/lib/api/client";
+
+import { formatValue, inMetricOrder, METRIC_INFO, METRIC_ORDER } from "./metrics";
 
 describe("formatValue", () => {
   it.each([
@@ -16,4 +18,18 @@ describe("formatValue", () => {
 
 it("METRIC_ORDER lists every metric exactly once", () => {
   expect([...METRIC_ORDER].sort()).toEqual(Object.keys(METRIC_INFO).sort());
+});
+
+describe("inMetricOrder", () => {
+  it.each<[string, Metric[], Metric[]]>([
+    [
+      "backend (alphabetical) order",
+      ["battery_v", "humidity_pct", "pressure_hpa", "specific_gravity", "temperature_c"],
+      ["temperature_c", "humidity_pct", "pressure_hpa", "specific_gravity", "battery_v"],
+    ],
+    ["a subset in reverse", ["battery_v", "specific_gravity", "temperature_c"], ["temperature_c", "specific_gravity", "battery_v"]],
+    ["empty", [], []],
+  ])("%s", (_, input, expected) => {
+    expect(inMetricOrder(input.map((metric) => ({ metric }))).map((r) => r.metric)).toEqual(expected);
+  });
 });

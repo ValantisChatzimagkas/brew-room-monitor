@@ -31,17 +31,20 @@ _EARLIEST = datetime(2000, 1, 1, tzinfo=UTC)
 
 @router.get("")
 def list_batches(
-    session: SessionDep, scope: ScopeDep, limit: Annotated[int, Query(ge=1, le=500)] = 100
+    session: SessionDep,
+    scope: ScopeDep,
+    device_id: int | None = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[BatchPublic]:
-    query = (
-        owned(
-            select(Batch).join(Device, col(Device.id) == col(Batch.device_id)),
-            col(Device.owner_id),
-            scope,
-        )
-        .order_by(col(Batch.started_at).desc(), col(Batch.id).desc())
-        .limit(limit)
+    # A foreign device id simply matches no rows, like an unknown one.
+    query = owned(
+        select(Batch).join(Device, col(Device.id) == col(Batch.device_id)),
+        col(Device.owner_id),
+        scope,
     )
+    if device_id is not None:
+        query = query.where(col(Batch.device_id) == device_id)
+    query = query.order_by(col(Batch.started_at).desc(), col(Batch.id).desc()).limit(limit)
     return [BatchPublic.model_validate(b) for b in session.exec(query).all()]
 
 

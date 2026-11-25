@@ -125,14 +125,20 @@ def make_device(
 def make_batch(client: TestClient, user_headers: dict[str, str]) -> Callable[..., int]:
     """Create a batch on a device over a window (open when `ended_at` is None); returns its id."""
 
-    def make(device_id: int, started_at: datetime, ended_at: datetime | None = None) -> int:
+    def make(
+        device_id: int,
+        started_at: datetime,
+        ended_at: datetime | None = None,
+        *,
+        headers: dict[str, str] | None = None,
+    ) -> int:
         body: dict[str, object] = {
             "name": "ipa",
             "device_id": device_id,
             "started_at": started_at.isoformat(),
             "ended_at": ended_at.isoformat() if ended_at else None,
         }
-        res = client.post("/api/v1/batches", json=body, headers=user_headers)
+        res = client.post("/api/v1/batches", json=body, headers=headers or user_headers)
         assert res.status_code == 201
         return int(res.json()["id"])
 

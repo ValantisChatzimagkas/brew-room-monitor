@@ -423,6 +423,7 @@ export interface operations {
     list_batches: {
         parameters: {
             query?: {
+                device_id?: number | null;
                 limit?: number;
             };
             header?: never;

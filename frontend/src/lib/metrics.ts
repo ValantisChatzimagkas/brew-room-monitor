@@ -23,3 +23,8 @@ export function formatValue(metric: Metric, value: number): string {
   const { unit, decimals } = METRIC_INFO[metric];
   return `${value.toFixed(decimals)} ${unit}`;
 }
+
+/** Rows in display order (the backend returns metric summaries by name). */
+export function inMetricOrder<T extends { metric: Metric }>(rows: readonly T[]): T[] {
+  return rows.toSorted((a, b) => METRIC_ORDER.indexOf(a.metric) - METRIC_ORDER.indexOf(b.metric));
+}
