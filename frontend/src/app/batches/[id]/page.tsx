@@ -41,17 +41,18 @@ async function BatchDetailView({ params }: Pick<PageProps<"/batches/[id]">, "par
   if (result.response.status === 404) notFound();
   if (result.error) throw new Error("Failed to load data from the API");
   const batch = result.data;
-  const device = await findDevice(batch.device_id);
-
-  const results = await Promise.all(
-    inMetricOrder(batch.metrics).map(async ({ metric }) => {
-      const readings = await api.GET("/api/v1/readings", {
-        params: { query: { batch_id: id, metric, limit: READINGS_LIMIT } },
-      });
-      if (readings.error) throw new Error("Failed to load data from the API");
-      return { metric, rows: readings.data };
-    }),
-  );
+  const [device, results] = await Promise.all([
+    findDevice(batch.device_id),
+    Promise.all(
+      inMetricOrder(batch.metrics).map(async ({ metric }) => {
+        const readings = await api.GET("/api/v1/readings", {
+          params: { query: { batch_id: id, metric, limit: READINGS_LIMIT } },
+        });
+        if (readings.error) throw new Error("Failed to load data from the API");
+        return { metric, rows: readings.data };
+      }),
+    ),
+  ]);
   const withRows = results.filter(({ rows }) => rows.length > 0);
   const from = Date.parse(batch.started_at);
   const to = batch.ended_at ? Date.parse(batch.ended_at) : now.getTime();
