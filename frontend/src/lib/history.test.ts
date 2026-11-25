@@ -4,6 +4,7 @@ import {
   autoBucket,
   BATCH_PERIODS,
   batchWindow,
+  blockingBatch,
   breakGaps,
   type ChartPoint,
   DEFAULT_GRANULARITY,
@@ -14,6 +15,7 @@ import {
   isIsolated,
   isPartial,
   parseId,
+  parseNewBatch,
   parseRange,
   pickBucket,
   RANGES,
@@ -180,6 +182,99 @@ describe("endTimeError", () => {
     ["garbage", "garbage", "Enter a valid end time."],
   ])("%s", (_, endedAt, expected) => {
     expect(endTimeError(endedAt, start, now)).toBe(expected);
+  });
+});
+
+describe("parseNewBatch", () => {
+  const now = new Date("2026-01-20T00:00:00Z");
+  const base = { name: "Summer IPA", startedAt: "2026-01-19T08:00:00.000Z", yeastName: "", yeastMin: "", yeastMax: "" };
+  const body = (over: object = {}) => ({
+    body: {
+      name: "Summer IPA",
+      started_at: "2026-01-19T08:00:00.000Z",
+      yeast_name: null,
+      yeast_min_temperature_c: null,
+      yeast_max_temperature_c: null,
+      ...over,
+    },
+  });
+  const reload = { errors: { form: "Reload the page and try again." } };
+  const invalidStart = { errors: { startedAt: "Enter a valid start time." } };
+  const bothOrNeither = "Enter both temperatures, or neither.";
+  it.each([
+    ["valid, no yeast", {}, body()],
+    [
+      "padded names trimmed, yeast range parsed",
+      { name: "  Summer IPA ", yeastName: " US-05 ", yeastMin: "15", yeastMax: " 22 " },
+      body({ yeast_name: "US-05", yeast_min_temperature_c: 15, yeast_max_temperature_c: 22 }),
+    ],
+    [
+      "min equals max",
+      { yeastMin: "18.5", yeastMax: "18.5" },
+      body({ yeast_min_temperature_c: 18.5, yeast_max_temperature_c: 18.5 }),
+    ],
+    ["start at now", { startedAt: "2026-01-20T00:00:00.000Z" }, body({ started_at: "2026-01-20T00:00:00.000Z" })],
+    ["start with an offset", { startedAt: "2026-01-19T10:00:00+02:00" }, body({ started_at: "2026-01-19T10:00:00+02:00" })],
+    ["empty name", { name: "" }, { errors: { name: "Enter a name." } }],
+    ["name of spaces", { name: "   " }, { errors: { name: "Enter a name." } }],
+    ["name of 65 characters", { name: "a".repeat(65) }, { errors: { name: "Keep the name to 64 characters." } }],
+    [
+      "yeast name of 65 characters",
+      { yeastName: "a".repeat(65) },
+      { errors: { yeastName: "Keep the yeast name to 64 characters." } },
+    ],
+    [
+      "start in the future",
+      { startedAt: "2026-01-20T00:00:00.001Z" },
+      { errors: { startedAt: "The start time is in the future." } },
+    ],
+    ["start without a zone", { startedAt: "2026-01-19T08:00:00" }, invalidStart],
+    ["empty start", { startedAt: "" }, invalidStart],
+    ["garbage start", { startedAt: "garbage" }, invalidStart],
+    ["only a min", { yeastMin: "15" }, { errors: { yeastMax: bothOrNeither } }],
+    ["only a max", { yeastMax: "22" }, { errors: { yeastMin: bothOrNeither } }],
+    [
+      "min above max",
+      { yeastMin: "22", yeastMax: "15" },
+      { errors: { yeastMin: "The minimum is above the maximum." } },
+    ],
+    ["min not a number", { yeastMin: "abc", yeastMax: "22" }, { errors: { yeastMin: "Enter a number." } }],
+    [
+      "several bad fields",
+      { name: "", startedAt: "2026-01-21T00:00:00.000Z", yeastMin: "15" },
+      {
+        errors: { name: "Enter a name.", startedAt: "The start time is in the future.", yeastMax: bothOrNeither },
+      },
+    ],
+  ])("%s", (_, over, expected) => {
+    expect(parseNewBatch({ ...base, ...over }, now)).toEqual(expected);
+  });
+
+  it.each([
+    ["not an object", "Summer IPA"],
+    ["null", null],
+    ["a field missing", { name: "Summer IPA", startedAt: base.startedAt, yeastName: "", yeastMin: "" }],
+    ["a field not a string", { ...base, yeastMin: 15 }],
+  ])("%s -> reload", (_, input) => {
+    expect(parseNewBatch(input, now)).toEqual(reload);
+  });
+});
+
+describe("blockingBatch", () => {
+  const batch = (id: number, started_at: string, ended_at: string | null) => ({ id, started_at, ended_at });
+  const running = batch(1, "2026-01-10T00:00:00Z", null);
+  const voided = batch(2, "2026-01-12T00:00:00Z", "2026-01-12T00:00:00Z");
+  const ended = batch(3, "2026-01-05T00:00:00Z", "2026-01-08T00:00:00Z");
+  const olderEnded = batch(4, "2026-01-01T00:00:00Z", "2026-01-03T00:00:00Z");
+  it.each([
+    ["no batches", [], undefined],
+    ["newest running", [running, ended], running],
+    ["voided before running", [voided, running], running],
+    ["voided before ended", [voided, ended], ended],
+    ["only voided", [voided], undefined],
+    ["two ended", [ended, olderEnded], ended],
+  ])("%s", (_, newestFirst, expected) => {
+    expect(blockingBatch(newestFirst)).toBe(expected);
   });
 });
 
