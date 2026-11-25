@@ -9,7 +9,8 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (pathname.startsWith("/auth/")) return response;
 
   if (!(await getAuth0().getSession(request))) {
-    // Clone nextUrl, not request.url: behind the container the latter's host is 0.0.0.0.
+    // Both nextUrl and request.url carry the internal host (0.0.0.0 in the container); Next relativizes a
+    // same-host redirect, so the internal host never reaches the browser.
     const url = request.nextUrl.clone();
     const target = new URL(signInPath(pathname + search), url);
     return NextResponse.redirect(target);
