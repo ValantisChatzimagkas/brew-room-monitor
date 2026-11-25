@@ -7,7 +7,7 @@ from sqlalchemy import select as select_columns  # sqlmodel's `select` types at 
 from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlmodel import Session, col, select
 
-from app.deps import ScopeDep, SessionDep, UserDep, get_batch_or_404, owned, save_or_conflict
+from app.deps import SessionDep, UserDep, get_batch_or_404, owned, save_or_conflict
 from app.models import (
     Batch,
     BatchCreate,
@@ -34,7 +34,7 @@ _EARLIEST = datetime(2000, 1, 1, tzinfo=UTC)
 @router.get("")
 def list_batches(
     session: SessionDep,
-    scope: ScopeDep,
+    user: UserDep,
     device_id: int | None = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[BatchPublic]:
@@ -42,7 +42,7 @@ def list_batches(
     query = owned(
         select(Batch).join(Device, col(Device.id) == col(Batch.device_id)),
         col(Device.owner_id),
-        scope,
+        user,
     )
     if device_id is not None:
         query = query.where(col(Batch.device_id) == device_id)
@@ -51,8 +51,8 @@ def list_batches(
 
 
 @router.get("/{batch_id}")
-def get_batch(batch_id: int, session: SessionDep, scope: ScopeDep) -> BatchDetail:
-    batch = get_batch_or_404(session, batch_id, scope)
+def get_batch(batch_id: int, session: SessionDep, user: UserDep) -> BatchDetail:
+    batch = get_batch_or_404(session, batch_id, user)
     return BatchDetail(
         **BatchPublic.model_validate(batch).model_dump(),
         metrics=_summarize_metrics(session, batch),

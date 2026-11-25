@@ -35,7 +35,6 @@ def _create(
 
 def test_create_and_list(
     client: TestClient,
-    admin_headers: dict[str, str],
     user_headers: dict[str, str],
     make_device: MakeDevice,
 ) -> None:
@@ -55,9 +54,9 @@ def test_create_and_list(
         other_id, _ = make_device(f"vessel-{name}")
         assert _create(client, user_headers, other_id, day, name=name) == 201
 
-    listed = client.get("/api/v1/batches", headers=admin_headers).json()
+    listed = client.get("/api/v1/batches", headers=user_headers).json()
     assert [b["name"] for b in listed] == ["ipa", "lager", "stout"]
-    one = client.get("/api/v1/batches", params={"limit": 1}, headers=admin_headers).json()
+    one = client.get("/api/v1/batches", params={"limit": 1}, headers=user_headers).json()
     assert [b["name"] for b in one] == ["ipa"]
 
 
@@ -273,8 +272,8 @@ def _ingest(
     assert res.status_code == 201
 
 
-def _get(client: TestClient, admin_headers: dict[str, str], batch_id: int) -> dict[str, Any]:
-    res = client.get(f"/api/v1/batches/{batch_id}", headers=admin_headers)
+def _get(client: TestClient, headers: dict[str, str], batch_id: int) -> dict[str, Any]:
+    res = client.get(f"/api/v1/batches/{batch_id}", headers=headers)
     assert res.status_code == 200
     body: dict[str, Any] = res.json()
     return body
@@ -282,7 +281,7 @@ def _get(client: TestClient, admin_headers: dict[str, str], batch_id: int) -> di
 
 def test_summary_covers_only_the_batch_window(
     client: TestClient,
-    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     make_device: MakeDevice,
     make_batch: MakeBatch,
 ) -> None:
@@ -306,7 +305,7 @@ def test_summary_covers_only_the_batch_window(
     first = make_batch(a_id, JAN_10, JAN_20)
     second = make_batch(a_id, JAN_20)
 
-    one = _get(client, admin_headers, first)
+    one = _get(client, user_headers, first)
     assert {k: one[k] for k in ("id", "name", "device_id", "ended_at")} == {
         "id": first,
         "name": "ipa",
@@ -326,7 +325,7 @@ def test_summary_covers_only_the_batch_window(
     assert temp["avg_value"] == pytest.approx(20)
     assert datetime.fromisoformat(temp["latest_recorded_at"]) == JAN_15
 
-    (only,) = _get(client, admin_headers, second)["metrics"]
+    (only,) = _get(client, user_headers, second)["metrics"]
     assert (only["metric"], only["count"], only["min_value"], only["max_value"]) == (
         "temperature_c",
         2,
@@ -353,7 +352,7 @@ def test_summary_covers_only_the_batch_window(
 )
 def test_summary_of_a_batch_without_readings_is_empty(
     client: TestClient,
-    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     make_device: MakeDevice,
     make_batch: MakeBatch,
     readings: list[tuple[str, float, datetime | None]],
@@ -364,12 +363,12 @@ def test_summary_of_a_batch_without_readings_is_empty(
     if readings:
         _ingest(client, headers, readings)
     batch_id = make_batch(device_id, started_at, ended_at)
-    assert _get(client, admin_headers, batch_id)["metrics"] == []
+    assert _get(client, user_headers, batch_id)["metrics"] == []
 
 
 def test_summary_of_a_single_reading(
     client: TestClient,
-    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     make_device: MakeDevice,
     make_batch: MakeBatch,
 ) -> None:
@@ -377,7 +376,7 @@ def test_summary_of_a_single_reading(
     _ingest(client, headers, [("specific_gravity", 1.04, JAN_10)])
     batch_id = make_batch(device_id, JAN_5, JAN_15)
 
-    (summary,) = _get(client, admin_headers, batch_id)["metrics"]
+    (summary,) = _get(client, user_headers, batch_id)["metrics"]
     assert summary["count"] == 1
     assert (
         summary["min_value"]
@@ -391,7 +390,7 @@ def test_summary_of_a_single_reading(
 
 def test_open_batch_summary_runs_to_now(
     client: TestClient,
-    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     make_device: MakeDevice,
     make_batch: MakeBatch,
 ) -> None:
@@ -405,7 +404,7 @@ def test_open_batch_summary_runs_to_now(
         [("temperature_c", 10, None), ("temperature_c", 20, None), ("temperature_c", 99, ahead)],
     )
 
-    (summary,) = _get(client, admin_headers, batch_id)["metrics"]
+    (summary,) = _get(client, user_headers, batch_id)["metrics"]
     assert summary["count"] == 2
     assert summary["latest_value"] == 20
     assert summary["max_value"] == 20  # the reading ahead of now is excluded, as in list_readings
@@ -414,7 +413,6 @@ def test_open_batch_summary_runs_to_now(
 def test_yeast_fit_counts_readings_against_the_range(
     client: TestClient,
     user_headers: dict[str, str],
-    admin_headers: dict[str, str],
     make_device: MakeDevice,
     make_batch: MakeBatch,
 ) -> None:
@@ -438,7 +436,7 @@ def test_yeast_fit_counts_readings_against_the_range(
     batch_id = make_batch(
         a_id, JAN_10, JAN_20, yeast_min_temperature_c=18, yeast_max_temperature_c=22
     )
-    assert _get(client, admin_headers, batch_id)["yeast_fit"] == {
+    assert _get(client, user_headers, batch_id)["yeast_fit"] == {
         "below": 1,
         "inside": 3,
         "above": 1,
@@ -450,7 +448,7 @@ def test_yeast_fit_counts_readings_against_the_range(
         headers=user_headers,
     )
     assert res.status_code == 200
-    assert _get(client, admin_headers, batch_id)["yeast_fit"] == {
+    assert _get(client, user_headers, batch_id)["yeast_fit"] == {
         "below": 0,
         "inside": 0,
         "above": 5,
@@ -477,7 +475,7 @@ def test_yeast_fit_counts_readings_against_the_range(
 )
 def test_yeast_fit_edge_cases(
     client: TestClient,
-    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     make_device: MakeDevice,
     make_batch: MakeBatch,
     readings: list[tuple[str, float, datetime | None]],
@@ -488,18 +486,17 @@ def test_yeast_fit_edge_cases(
     if readings:
         _ingest(client, headers, readings)
     batch_id = make_batch(device_id, JAN_10, JAN_20, **yeast_range)
-    detail = _get(client, admin_headers, batch_id)
+    detail = _get(client, user_headers, batch_id)
     assert detail["yeast_fit"] == expected
     assert len(detail["metrics"]) == len(readings)  # the summary is unaffected
 
 
-def test_get_unknown_batch_is_404(client: TestClient, admin_headers: dict[str, str]) -> None:
-    assert client.get("/api/v1/batches/999", headers=admin_headers).status_code == 404
+def test_get_unknown_batch_is_404(client: TestClient, user_headers: dict[str, str]) -> None:
+    assert client.get("/api/v1/batches/999", headers=user_headers).status_code == 404
 
 
 def test_list_filters_by_device(
     client: TestClient,
-    admin_headers: dict[str, str],
     user_headers: dict[str, str],
     other_user_headers: dict[str, str],
     make_device: MakeDevice,
@@ -515,7 +512,7 @@ def test_list_filters_by_device(
         json={"name": "vessel-c", "kind": "in_vessel"},
         headers=other_user_headers,
     ).json()["id"]
-    bob_batch = make_batch(bob_device, JAN_1, headers=other_user_headers)
+    make_batch(bob_device, JAN_1, headers=other_user_headers)
 
     for headers, params, expected in (
         (user_headers, {"device_id": a}, [a_open, a_closed]),
@@ -523,7 +520,6 @@ def test_list_filters_by_device(
         (user_headers, {"device_id": a, "limit": 1}, [a_open]),
         (user_headers, {"device_id": bob_device}, []),  # foreign answers like unknown
         (user_headers, {"device_id": 999}, []),
-        (admin_headers, {"device_id": bob_device}, [bob_batch]),
     ):
         res = client.get("/api/v1/batches", params=params, headers=headers)
         assert res.status_code == 200, params
@@ -532,7 +528,6 @@ def test_list_filters_by_device(
 
 def test_owners_cannot_see_each_others_batches(
     client: TestClient,
-    admin_headers: dict[str, str],
     user_headers: dict[str, str],
     other_user_headers: dict[str, str],
     make_device: MakeDevice,
@@ -559,13 +554,10 @@ def test_owners_cannot_see_each_others_batches(
 
     assert ids(user_headers) == [alice_batch]
     assert ids(other_user_headers) == [bob_batch]
-    assert ids(admin_headers) == [alice_batch, bob_batch]
     assert ids(other_user_headers, limit=1) == [bob_batch]  # the owner filter runs before `limit`
     for headers, batch_id in (
         (user_headers, alice_batch),
         (other_user_headers, bob_batch),
-        (admin_headers, alice_batch),
-        (admin_headers, bob_batch),
     ):
         assert client.get(f"/api/v1/batches/{batch_id}", headers=headers).status_code == 200
 

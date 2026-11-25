@@ -19,7 +19,6 @@ jobs:
         options: --health-cmd "pg_isready -U brew" --health-interval 3s --health-retries 10
     env:
       DATABASE_URL: postgresql+psycopg://brew:brew@localhost:5432/brew
-      ADMIN_TOKEN: ci-token
     # CI runs the same make targets as `make check`, so local and CI can't drift.
     steps:
       - uses: actions/checkout@v7
@@ -43,8 +42,6 @@ jobs:
   stack:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      ADMIN_TOKEN: ci-token
     steps:
       - uses: actions/checkout@v7
       - run: make setup

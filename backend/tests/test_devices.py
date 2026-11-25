@@ -6,7 +6,6 @@ from fastapi.testclient import TestClient
 
 def test_create_returns_token_once(
     client: TestClient,
-    admin_headers: dict[str, str],
     user_headers: dict[str, str],
     location_id: int,
 ) -> None:
@@ -18,7 +17,7 @@ def test_create_returns_token_once(
     assert res.status_code == 201
     assert res.json()["token"]
 
-    listed = client.get("/api/v1/devices", headers=admin_headers).json()
+    listed = client.get("/api/v1/devices", headers=user_headers).json()
     assert [d["name"] for d in listed] == ["room-a"]
     assert listed[0]["location"] == {"id": location_id, "name": "garage"}
     assert "token" not in listed[0] and "token_hash" not in listed[0]
@@ -52,7 +51,6 @@ def test_names_are_unique_per_owner(
 
 def test_update_renames_and_moves(
     client: TestClient,
-    admin_headers: dict[str, str],
     user_headers: dict[str, str],
     location_id: int,
 ) -> None:
@@ -69,7 +67,7 @@ def test_update_renames_and_moves(
         headers=user_headers,
     )
     assert res.status_code == 200
-    listed = client.get("/api/v1/devices", headers=admin_headers).json()
+    listed = client.get("/api/v1/devices", headers=user_headers).json()
     assert [(d["name"], d["location"]["name"]) for d in listed] == [("room-b", "cellar")]
 
 
@@ -113,9 +111,7 @@ def test_unknown_device_404(
     assert client.request(method, path, json=body, headers=user_headers).status_code == 404
 
 
-def test_revoke_cuts_off_device(
-    client: TestClient, admin_headers: dict[str, str], user_headers: dict[str, str]
-) -> None:
+def test_revoke_cuts_off_device(client: TestClient, user_headers: dict[str, str]) -> None:
     device = client.post(
         "/api/v1/devices", json={"name": "capsule", "kind": "in_vessel"}, headers=user_headers
     ).json()
@@ -139,9 +135,9 @@ def test_revoke_cuts_off_device(
     assert cut_off.status_code == 401
     assert cut_off.json() == unknown.json()
 
-    readings = client.get("/api/v1/readings", headers=admin_headers).json()
+    readings = client.get("/api/v1/readings", headers=user_headers).json()
     assert [r["device_id"] for r in readings] == [device["id"]]
-    listed = client.get("/api/v1/devices", headers=admin_headers).json()
+    listed = client.get("/api/v1/devices", headers=user_headers).json()
     assert listed[0]["revoked_at"] == revoked_at
     assert "token" not in listed[0] and "token_hash" not in listed[0]
 
@@ -188,17 +184,15 @@ def test_in_vessel_location_can_be_cleared(
     assert res.json()["location"] is None
 
 
-def test_list_limit(
-    client: TestClient, admin_headers: dict[str, str], user_headers: dict[str, str]
-) -> None:
+def test_list_limit(client: TestClient, user_headers: dict[str, str]) -> None:
     for name in ("a", "b"):
         client.post(
             "/api/v1/devices", json={"name": name, "kind": "in_vessel"}, headers=user_headers
         )
-    res = client.get("/api/v1/devices", params={"limit": 1}, headers=admin_headers)
+    res = client.get("/api/v1/devices", params={"limit": 1}, headers=user_headers)
     assert [d["name"] for d in res.json()] == ["a"]
     for limit in (0, 501):
-        res = client.get("/api/v1/devices", params={"limit": limit}, headers=admin_headers)
+        res = client.get("/api/v1/devices", params={"limit": limit}, headers=user_headers)
         assert res.status_code == 422, limit
 
 
@@ -271,18 +265,3 @@ def test_owners_cannot_see_each_others_devices(
         f"/api/v1/devices/{alice_device}", json={"name": "room-b"}, headers=user_headers
     )
     assert renamed.status_code == 200
-
-
-def test_admin_lists_everything_unscoped(
-    client: TestClient,
-    admin_headers: dict[str, str],
-    user_headers: dict[str, str],
-    other_user_headers: dict[str, str],
-) -> None:
-    for headers, name in [(user_headers, "a"), (other_user_headers, "b")]:
-        client.post("/api/v1/locations", json={"name": name}, headers=headers)
-        client.post("/api/v1/devices", json={"name": name, "kind": "in_vessel"}, headers=headers)
-    devices = client.get("/api/v1/devices", headers=admin_headers).json()
-    locations = client.get("/api/v1/locations", headers=admin_headers).json()
-    assert [d["name"] for d in devices] == ["a", "b"]
-    assert [loc["name"] for loc in locations] == ["a", "b"]

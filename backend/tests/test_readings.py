@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 
 def test_ingest_and_list(
-    client: TestClient, device_headers: dict[str, str], admin_headers: dict[str, str]
+    client: TestClient, device_headers: dict[str, str], user_headers: dict[str, str]
 ) -> None:
     ts = "2026-01-01T12:00:00+00:00"
     batch = {
@@ -20,7 +20,7 @@ def test_ingest_and_list(
     assert res.json() == {"accepted": 2}
 
     temps = client.get(
-        "/api/v1/readings", params={"metric": "temperature_c"}, headers=admin_headers
+        "/api/v1/readings", params={"metric": "temperature_c"}, headers=user_headers
     ).json()
     assert len(temps) == 1
     assert temps[0]["value"] == 18.5
@@ -43,7 +43,7 @@ def test_rejects_bad_payloads(client: TestClient, device_headers: dict[str, str]
 
 
 def test_resend_is_idempotent(
-    client: TestClient, device_headers: dict[str, str], admin_headers: dict[str, str]
+    client: TestClient, device_headers: dict[str, str], user_headers: dict[str, str]
 ) -> None:
     def reading(minute: int) -> dict[str, object]:
         return {
@@ -53,7 +53,7 @@ def test_resend_is_idempotent(
         }
 
     def stored() -> int:
-        return len(client.get("/api/v1/readings", headers=admin_headers).json())
+        return len(client.get("/api/v1/readings", headers=user_headers).json())
 
     first = {"readings": [reading(0), reading(1)]}
     for _ in range(2):  # the second round is a retry after a lost 201
@@ -73,7 +73,7 @@ def test_resend_is_idempotent(
     res = client.post("/api/v1/readings", json=conflicting, headers=device_headers)
     assert res.status_code == 201
     assert res.json() == {"accepted": 1}
-    values = [r["value"] for r in client.get("/api/v1/readings", headers=admin_headers).json()]
+    values = [r["value"] for r in client.get("/api/v1/readings", headers=user_headers).json()]
     assert stored() == 3
     assert 99.0 not in values
 
@@ -81,7 +81,6 @@ def test_resend_is_idempotent(
 def test_same_reading_from_two_devices_is_stored_twice(
     client: TestClient,
     device_headers: dict[str, str],
-    admin_headers: dict[str, str],
     user_headers: dict[str, str],
     location_id: int,
 ) -> None:
@@ -97,12 +96,12 @@ def test_same_reading_from_two_devices_is_stored_twice(
     for headers in (device_headers, other_headers):
         assert client.post("/api/v1/readings", json=batch, headers=headers).status_code == 201
 
-    stored = client.get("/api/v1/readings", headers=admin_headers).json()
+    stored = client.get("/api/v1/readings", headers=user_headers).json()
     assert len({r["device_id"] for r in stored}) == 2
 
 
 def test_backlog_accepted_and_ordered_by_recorded_at(
-    client: TestClient, device_headers: dict[str, str], admin_headers: dict[str, str]
+    client: TestClient, device_headers: dict[str, str], user_headers: dict[str, str]
 ) -> None:
     now = datetime.now(UTC)
     days_ago = [3, 1, 2, 0]  # arrival order differs from time order
@@ -119,14 +118,14 @@ def test_backlog_accepted_and_ordered_by_recorded_at(
     res = client.post("/api/v1/readings", json=batch, headers=device_headers)
     assert res.status_code == 201
 
-    stored = client.get("/api/v1/readings", headers=admin_headers).json()
+    stored = client.get("/api/v1/readings", headers=user_headers).json()
     times = [datetime.fromisoformat(r["recorded_at"]) for r in stored]
     assert len(times) == 4
     assert times == sorted(times, reverse=True)
 
 
 def test_list_readings_since_is_inclusive(
-    client: TestClient, device_headers: dict[str, str], admin_headers: dict[str, str]
+    client: TestClient, device_headers: dict[str, str], user_headers: dict[str, str]
 ) -> None:
     batch = {
         "readings": [
@@ -139,21 +138,21 @@ def test_list_readings_since_is_inclusive(
     assert client.post("/api/v1/readings", json=batch, headers=device_headers).status_code == 201
 
     res = client.get(
-        "/api/v1/readings", params={"since": "2026-01-01T12:00:00+00:00"}, headers=admin_headers
+        "/api/v1/readings", params={"since": "2026-01-01T12:00:00+00:00"}, headers=user_headers
     )
     assert res.status_code == 200
     assert [r["value"] for r in res.json()] == [20.0, 19.0]  # 12:01 then 12:00, newest first
 
 
 def test_readings_without_recorded_at_are_never_deduplicated(
-    client: TestClient, device_headers: dict[str, str], admin_headers: dict[str, str]
+    client: TestClient, device_headers: dict[str, str], user_headers: dict[str, str]
 ) -> None:
     batch = {"readings": [{"metric": "humidity_pct", "value": 60}] * 2}
     for expected in (2, 4):
         res = client.post("/api/v1/readings", json=batch, headers=device_headers)
         assert res.status_code == 201
         assert res.json() == {"accepted": 2}
-        assert len(client.get("/api/v1/readings", headers=admin_headers).json()) == expected
+        assert len(client.get("/api/v1/readings", headers=user_headers).json()) == expected
 
 
 @pytest.mark.parametrize(
@@ -181,7 +180,7 @@ def test_readings_without_recorded_at_are_never_deduplicated(
 def test_accepts_every_metric_its_kind_allows(
     request: pytest.FixtureRequest,
     client: TestClient,
-    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     headers_fixture: str,
     readings: list[dict[str, object]],
 ) -> None:
@@ -189,7 +188,7 @@ def test_accepts_every_metric_its_kind_allows(
     res = client.post("/api/v1/readings", json={"readings": readings}, headers=headers)
     assert res.status_code == 201
     assert res.json() == {"accepted": len(readings)}
-    assert len(client.get("/api/v1/readings", headers=admin_headers).json()) == len(readings)
+    assert len(client.get("/api/v1/readings", headers=user_headers).json()) == len(readings)
 
 
 @pytest.mark.parametrize(
@@ -203,7 +202,7 @@ def test_accepts_every_metric_its_kind_allows(
 def test_rejects_metric_not_allowed_for_kind(
     request: pytest.FixtureRequest,
     client: TestClient,
-    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     headers_fixture: str,
     metric: str,
     value: float,
@@ -217,7 +216,7 @@ def test_rejects_metric_not_allowed_for_kind(
     }
     res = client.post("/api/v1/readings", json=batch, headers=headers)
     assert res.status_code == 422
-    assert client.get("/api/v1/readings", headers=admin_headers).json() == []
+    assert client.get("/api/v1/readings", headers=user_headers).json() == []
 
 
 @pytest.mark.parametrize(
@@ -233,7 +232,7 @@ def test_rejects_metric_not_allowed_for_kind(
 def test_value_bounds_per_metric(
     request: pytest.FixtureRequest,
     client: TestClient,
-    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     metric: str,
     headers_fixture: str,
     low: float,
@@ -244,7 +243,7 @@ def test_value_bounds_per_metric(
     headers: dict[str, str] = request.getfixturevalue(headers_fixture)
 
     def stored() -> int:
-        return len(client.get("/api/v1/readings", headers=admin_headers).json())
+        return len(client.get("/api/v1/readings", headers=user_headers).json())
 
     # Both edges are inclusive.
     edges = {"readings": [{"metric": metric, "value": low}, {"metric": metric, "value": high}]}
@@ -277,15 +276,15 @@ def _ingest(client: TestClient, headers: dict[str, str], metric: str, days: list
     assert res.status_code == 201
 
 
-def _days(client: TestClient, admin_headers: dict[str, str], **params: str | int) -> list[int]:
-    res = client.get("/api/v1/readings", params=params, headers=admin_headers)
+def _days(client: TestClient, headers: dict[str, str], **params: str | int) -> list[int]:
+    res = client.get("/api/v1/readings", params=params, headers=headers)
     assert res.status_code == 200
     return [datetime.fromisoformat(r["recorded_at"]).day for r in res.json()]
 
 
 def test_batch_filter_returns_only_its_window(
     client: TestClient,
-    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     make_device: MakeDevice,
     make_batch: MakeBatch,
 ) -> None:
@@ -297,9 +296,9 @@ def test_batch_filter_returns_only_its_window(
     second = make_batch(a_id, _dt(20))  # open, starts where the first ends
 
     # Start inclusive, end exclusive, other devices excluded.
-    assert _days(client, admin_headers, batch_id=first) == [15, 10]
+    assert _days(client, user_headers, batch_id=first) == [15, 10]
     # The reading on the shared boundary belongs to exactly one batch.
-    assert _days(client, admin_headers, batch_id=second) == [21, 20]
+    assert _days(client, user_headers, batch_id=second) == [21, 20]
 
     # An open batch runs "to now": a reading a few minutes ahead (device clock skew) stays out.
     ahead = datetime.now(UTC) + timedelta(minutes=3)
@@ -311,12 +310,12 @@ def test_batch_filter_returns_only_its_window(
         headers=a_headers,
     )
     assert res.status_code == 201
-    assert _days(client, admin_headers, batch_id=second) == [21, 20]
+    assert _days(client, user_headers, batch_id=second) == [21, 20]
 
 
 def test_batch_filter_composes_with_other_params(
     client: TestClient,
-    admin_headers: dict[str, str],
+    user_headers: dict[str, str],
     make_device: MakeDevice,
     make_batch: MakeBatch,
 ) -> None:
@@ -326,22 +325,21 @@ def test_batch_filter_composes_with_other_params(
     _ingest(client, a_headers, "specific_gravity", [13])
     batch = make_batch(a_id, _dt(10), _dt(20))
 
-    assert _days(client, admin_headers, batch_id=batch) == [15, 13, 12, 11]
-    assert _days(client, admin_headers, batch_id=batch, metric="temperature_c") == [15, 12, 11]
-    assert _days(client, admin_headers, batch_id=batch, since=_day(12)) == [15, 13, 12]
-    assert _days(client, admin_headers, batch_id=batch, limit=1) == [15]
-    assert _days(client, admin_headers, batch_id=batch, device_id=a_id) == [15, 13, 12, 11]
-    assert _days(client, admin_headers, batch_id=batch, device_id=b_id) == []
+    assert _days(client, user_headers, batch_id=batch) == [15, 13, 12, 11]
+    assert _days(client, user_headers, batch_id=batch, metric="temperature_c") == [15, 12, 11]
+    assert _days(client, user_headers, batch_id=batch, since=_day(12)) == [15, 13, 12]
+    assert _days(client, user_headers, batch_id=batch, limit=1) == [15]
+    assert _days(client, user_headers, batch_id=batch, device_id=a_id) == [15, 13, 12, 11]
+    assert _days(client, user_headers, batch_id=batch, device_id=b_id) == []
 
 
-def test_unknown_batch_id_is_404(client: TestClient, admin_headers: dict[str, str]) -> None:
-    res = client.get("/api/v1/readings", params={"batch_id": 999}, headers=admin_headers)
+def test_unknown_batch_id_is_404(client: TestClient, user_headers: dict[str, str]) -> None:
+    res = client.get("/api/v1/readings", params={"batch_id": 999}, headers=user_headers)
     assert res.status_code == 404
 
 
 def test_user_sees_only_readings_of_their_devices(
     client: TestClient,
-    admin_headers: dict[str, str],
     user_headers: dict[str, str],
     other_user_headers: dict[str, str],
     make_device: MakeDevice,
@@ -359,7 +357,6 @@ def test_user_sees_only_readings_of_their_devices(
     # A revoked device's readings stay with its owner: the scope joins on the device, not its token.
     assert _days(client, user_headers) == [2, 1]
     assert _days(client, other_user_headers) == [3]
-    assert _days(client, admin_headers) == [3, 2, 1]
 
     # Another owner's device id is indistinguishable from an unknown one.
     assert _days(client, user_headers, device_id=bob_id) == []
@@ -369,7 +366,6 @@ def test_user_sees_only_readings_of_their_devices(
 
 def test_foreign_batch_id_is_404(
     client: TestClient,
-    admin_headers: dict[str, str],
     user_headers: dict[str, str],
     other_user_headers: dict[str, str],
     make_device: MakeDevice,
@@ -385,4 +381,3 @@ def test_foreign_batch_id_is_404(
     assert (foreign.status_code, foreign.json()) == (missing.status_code, missing.json())
 
     assert _days(client, user_headers, batch_id=batch) == [15]
-    assert _days(client, admin_headers, batch_id=batch) == [15]

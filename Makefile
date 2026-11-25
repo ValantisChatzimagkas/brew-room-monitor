@@ -16,10 +16,9 @@ endif
 help:          ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(firstword $(MAKEFILE_LIST)) | awk -F':.*## ' '{printf "%-16s %s\n", $$1, $$2}'
 
-setup:         ## create .env with a fresh ADMIN_TOKEN (skips an existing file)
+setup:         ## create .env from .env.example (skips an existing file)
 	@if [ -e .env ]; then echo ".env exists, skipped"; \
-	else token=$$(python3 -c "import secrets; print(secrets.token_urlsafe(32))"); \
-	  sed "s|^ADMIN_TOKEN=.*|ADMIN_TOKEN=$$token|" .env.example > .env && echo "created .env"; fi
+	else cp .env.example .env && echo "created .env"; fi
 
 db:            ## start Postgres only, wait until it accepts connections
 	docker compose up -d --wait db
@@ -45,7 +44,7 @@ OPENAPI ?= frontend/openapi.json
 SCHEMA ?= frontend/src/lib/api/schema.d.ts
 
 api-types:     ## regenerate frontend types from the backend OpenAPI schema
-	cd backend && ADMIN_TOKEN=unused uv run python -c "import json; from app.main import app; print(json.dumps(app.openapi(), indent=2))" > $(abspath $(OPENAPI))
+	cd backend && uv run python -c "import json; from app.main import app; print(json.dumps(app.openapi(), indent=2))" > $(abspath $(OPENAPI))
 	cd frontend && pnpm exec openapi-typescript $(abspath $(OPENAPI)) -o $(abspath $(SCHEMA))
 
 # Generates into a temp dir, so it passes with regenerated-but-unstaged files (unlike `git diff`).
@@ -94,7 +93,7 @@ db-reset:      ## wipe the dev database volume (asks first)
 # compose); the frontend's own checks are the redirect for anonymous visitors and a reachable backend.
 smoke:         ## build the images, boot the compose stack, assert it works end to end (needs ports 3000/8000/5432 free)
 	@set -e; \
-	export COMPOSE_PROJECT_NAME=brew-smoke ADMIN_TOKEN=$${ADMIN_TOKEN:-smoke-token} \
+	export COMPOSE_PROJECT_NAME=brew-smoke \
 	  AUTH0_DOMAIN=smoke.invalid AUTH0_CLIENT_ID=smoke AUTH0_CLIENT_SECRET=smoke \
 	  AUTH0_SECRET=$$(python3 -c "import secrets; print(secrets.token_hex(32))") APP_BASE_URL=http://localhost:3000 \
 	  AUTH_AUDIENCE=https://smoke.invalid/api AUTH_ISSUER=https://smoke.invalid/; \

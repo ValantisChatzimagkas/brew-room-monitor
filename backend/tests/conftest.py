@@ -25,13 +25,15 @@ _base_url = make_url(
     os.environ.get("DATABASE_URL", "postgresql+psycopg://brew:brew@localhost:5432/brew")
 )
 TEST_DB_URL = _base_url.set(database=f"{_base_url.database}_test")
-ADMIN_TOKEN = "test-admin-token"
+LEFTOVER_ADMIN_TOKEN = "test-admin-token"
 AUDIENCE = "https://api.brew.test"
 
 os.environ.update(
     ENVIRONMENT="test",
     DATABASE_URL=TEST_DB_URL.render_as_string(hide_password=False),
-    ADMIN_TOKEN=ADMIN_TOKEN,
+    # Simulates an ADMIN_TOKEN left in an old .env (retired by SOL-124): the app must ignore it,
+    # and test_auth.py / test_me.py check it gets the generic 401.
+    ADMIN_TOKEN=LEFTOVER_ADMIN_TOKEN,
 )
 # The Makefile exports the root .env into pytest: a developer's real tenant must not leak in.
 for _name in ("AUTH_ISSUER", "AUTH_AUDIENCE"):
@@ -77,11 +79,6 @@ def client(session: Session) -> Iterator[TestClient]:
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
-
-
-@pytest.fixture
-def admin_headers() -> dict[str, str]:
-    return {"Authorization": f"Bearer {ADMIN_TOKEN}"}
 
 
 @pytest.fixture
@@ -220,7 +217,6 @@ def issuer() -> Iterator[FakeIssuer]:
     fake = FakeIssuer()
     app.dependency_overrides[get_settings] = lambda: Settings(
         environment="test",
-        admin_token=ADMIN_TOKEN,
         auth_issuer=fake.url,
         auth_audience=AUDIENCE,
     )

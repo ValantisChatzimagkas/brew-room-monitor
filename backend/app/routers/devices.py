@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, select
 
-from app.deps import ScopeDep, SessionDep, UserDep, owned, save_or_conflict
+from app.deps import SessionDep, UserDep, owned, save_or_conflict
 from app.models import (
     Device,
     DeviceCreate,
@@ -23,10 +23,10 @@ router = APIRouter(prefix="/devices", tags=["devices"])
 
 @router.get("")
 def list_devices(
-    session: SessionDep, scope: ScopeDep, limit: Annotated[int, Query(ge=1, le=500)] = 100
+    session: SessionDep, user: UserDep, limit: Annotated[int, Query(ge=1, le=500)] = 100
 ) -> list[DevicePublic]:
     query = (
-        owned(select(Device), col(Device.owner_id), scope)
+        owned(select(Device), col(Device.owner_id), user)
         .options(selectinload(Device.location))  # type: ignore[arg-type]  # SQLModel types relationships as plain attributes
         .order_by(col(Device.name))
         .limit(limit)

@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col, select
 
-from app.deps import DeviceDep, ScopeDep, SessionDep, get_batch_or_404, owned
+from app.deps import DeviceDep, SessionDep, UserDep, get_batch_or_404, owned
 from app.models import (
     Device,
     IngestResult,
@@ -64,7 +64,7 @@ def ingest_readings(batch: ReadingBatch, device: DeviceDep, session: SessionDep)
 @router.get("")
 def list_readings(
     session: SessionDep,
-    scope: ScopeDep,
+    user: UserDep,
     device_id: int | None = None,
     batch_id: int | None = None,
     metric: Metric | None = None,
@@ -75,13 +75,13 @@ def list_readings(
     query = owned(
         select(Reading).join(Device, col(Device.id) == col(Reading.device_id)),
         col(Device.owner_id),
-        scope,
+        user,
     )
     query = query.order_by(col(Reading.recorded_at).desc()).limit(limit)
     if device_id is not None:
         query = query.where(Reading.device_id == device_id)
     if batch_id is not None:
-        query = query.where(*batch_readings_filter(get_batch_or_404(session, batch_id, scope)))
+        query = query.where(*batch_readings_filter(get_batch_or_404(session, batch_id, user)))
     if metric is not None:
         query = query.where(Reading.metric == metric)
     if since is not None:

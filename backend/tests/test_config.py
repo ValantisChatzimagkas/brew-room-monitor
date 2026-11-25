@@ -6,32 +6,17 @@ from pydantic import ValidationError
 from app.config import Settings
 
 
-@pytest.mark.parametrize(
-    ("environment", "token", "ok"),
-    [
-        ("production", "change-me", False),
-        ("production", "x" * 31, False),
-        ("production", "x" * 32, True),
-        ("local", "change-me", True),
-    ],
-)
-def test_production_requires_strong_admin_token(
-    environment: Literal["local", "production"], token: str, ok: bool
+@pytest.mark.parametrize("admin_token", [None, "change-me"])
+def test_boots_whatever_admin_token_is_left(
+    monkeypatch: pytest.MonkeyPatch, admin_token: str | None
 ) -> None:
-    def build() -> Settings:
-        return Settings(
-            environment=environment,
-            admin_token=token,
-            auth_issuer="https://tenant.example/",
-            auth_audience="api",
-        )
-
-    if ok:
-        build()
-        return
-    with pytest.raises(ValidationError) as exc:
-        build()
-    assert token not in str(exc.value)  # the secret must not leak into startup logs
+    # SOL-124 retired ADMIN_TOKEN: an old .env may still set it (even the placeholder production
+    # used to reject), and production must boot either way.
+    if admin_token is None:
+        monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+    else:
+        monkeypatch.setenv("ADMIN_TOKEN", admin_token)
+    Settings(environment="production", auth_issuer="https://tenant.example/", auth_audience="api")
 
 
 @pytest.mark.parametrize(
@@ -55,7 +40,6 @@ def test_auth_config_rules(
     def build() -> Settings:
         return Settings(
             environment=environment,
-            admin_token="x" * 32,
             auth_issuer=issuer,
             auth_audience=audience,
         )

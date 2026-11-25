@@ -4,7 +4,7 @@ This file is the contract the backend promises to keep.
 
 ## 1. Register a device (once, from your laptop)
 
-Registering needs a user token (`$USER_TOKEN`, see "Getting a user token"): the location and the device belong to the user who creates them, and only that user sees or changes them. The admin token is rejected with 401.
+Registering needs a user token (`$USER_TOKEN`, see "Getting a user token"): the location and the device belong to the user who creates them, and only that user sees or changes them.
 
 An `ambient` device needs the room it measures. Create the location once (`GET /api/v1/locations` lists yours), then register the device with its `id`:
 

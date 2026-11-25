@@ -1,4 +1,3 @@
-import secrets
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
@@ -29,11 +28,6 @@ _UNAUTHORIZED = HTTPException(
 _PROVIDER_UNAVAILABLE = HTTPException(
     status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Sign-in provider unavailable"
 )
-
-
-def _is_admin(creds: HTTPAuthorizationCredentials | None, settings: Settings) -> bool:
-    expected = settings.admin_token.get_secret_value()
-    return creds is not None and secrets.compare_digest(creds.credentials, expected)
 
 
 def current_device(creds: BearerDep, session: SessionDep) -> Device:
@@ -71,21 +65,9 @@ def current_user(creds: BearerDep, session: SessionDep, settings: SettingsDep) -
     return user
 
 
-def owner_scope(creds: BearerDep, session: SessionDep, settings: SettingsDep) -> User | None:
-    """The caller's user, or None for the admin token (sees every owner's rows).
-
-    Admin is checked first so the dashboard never triggers a JWKS fetch.
-    """
-    if _is_admin(creds, settings):
-        return None
-    return current_user(creds, session, settings)
-
-
-def owned[T](
-    query: SelectOfScalar[T], owner_column: Mapped[int], scope: User | None
-) -> SelectOfScalar[T]:
-    """Limit `query` to the rows `scope` owns; no limit for the admin (`scope` is None)."""
-    return query if scope is None else query.where(owner_column == scope.id)
+def owned[T](query: SelectOfScalar[T], owner_column: Mapped[int], user: User) -> SelectOfScalar[T]:
+    """Limit `query` to the rows `user` owns."""
+    return query.where(owner_column == user.id)
 
 
 def save_or_conflict(session: Session, row: SQLModel, conflict: str) -> None:
@@ -99,7 +81,7 @@ def save_or_conflict(session: Session, row: SQLModel, conflict: str) -> None:
     session.refresh(row)
 
 
-def get_batch_or_404(session: Session, batch_id: int, scope: User | None = None) -> Batch:
+def get_batch_or_404(session: Session, batch_id: int, user: User) -> Batch:
     """The batch, or 404. Joined to its device so a foreign owner's batch is a 404 too."""
     batch = session.exec(
         owned(
@@ -107,7 +89,7 @@ def get_batch_or_404(session: Session, batch_id: int, scope: User | None = None)
             .join(Device, col(Device.id) == col(Batch.device_id))
             .where(Batch.id == batch_id),
             col(Device.owner_id),
-            scope,
+            user,
         )
     ).first()
     if batch is None:
@@ -117,4 +99,3 @@ def get_batch_or_404(session: Session, batch_id: int, scope: User | None = None)
 
 DeviceDep = Annotated[Device, Depends(current_device)]
 UserDep = Annotated[User, Depends(current_user)]
-ScopeDep = Annotated[User | None, Depends(owner_scope)]
