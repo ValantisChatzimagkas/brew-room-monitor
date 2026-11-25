@@ -11,9 +11,9 @@ describe("yeastSplit", () => {
     ["below and above, none inside", [1, 0, 1], [true, false, true]],
   ])("%s", (_, [below, inside, above], flagged) => {
     expect(yeastSplit({ below, inside, above })).toEqual([
-      { label: "Below", count: below, flagged: flagged[0] },
-      { label: "Inside", count: inside, flagged: flagged[1] },
-      { label: "Above", count: above, flagged: flagged[2] },
+      { label: "below", count: below, flagged: flagged[0] },
+      { label: "inside", count: inside, flagged: flagged[1] },
+      { label: "above", count: above, flagged: flagged[2] },
     ]);
   });
 });

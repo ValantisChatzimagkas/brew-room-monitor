@@ -172,7 +172,7 @@ function BatchCard({ batch, now }: { batch: BatchDetail; now: Date }) {
                 <span key={item.label}>
                   {i > 0 && " · "}
                   <span className={item.flagged ? "font-medium text-out-of-range" : undefined}>
-                    {item.count} {item.label.toLowerCase()}
+                    {item.count} {item.label}
                   </span>
                 </span>
               ))}
