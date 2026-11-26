@@ -61,10 +61,15 @@ export async function getApi() {
   return client;
 }
 
-/** No GET /devices/{id}: list at the route's max limit and find. A device beyond the first 500 by name is not found. */
-export async function findDevice(id: number): Promise<Device | undefined> {
+/** All of the user's devices at the route's max limit; a device beyond the first 500 by name is missing. */
+export async function listDevices(): Promise<Device[]> {
   const api = await getApi();
   const devices = await api.GET("/api/v1/devices", { params: { query: { limit: 500 } } });
   if (devices.error) throw new Error("Failed to load data from the API");
-  return devices.data.find((d) => d.id === id);
+  return devices.data;
+}
+
+/** No GET /devices/{id}: find in `listDevices()`. */
+export async function findDevice(id: number): Promise<Device | undefined> {
+  return (await listDevices()).find((d) => d.id === id);
 }

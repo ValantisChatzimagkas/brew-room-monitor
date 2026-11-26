@@ -58,7 +58,10 @@ def list_batches(
     )
     if device_id is not None:
         query = query.where(col(Batch.device_id) == device_id)
-    query = query.order_by(col(Batch.started_at).desc(), col(Batch.id).desc()).limit(limit)
+    # Running first (false sorts first), before `limit`, so an old running batch never drops off.
+    query = query.order_by(
+        col(Batch.ended_at).is_not(None), col(Batch.started_at).desc(), col(Batch.id).desc()
+    ).limit(limit)
     return [BatchPublic.model_validate(b) for b in session.exec(query).all()]
 
 
