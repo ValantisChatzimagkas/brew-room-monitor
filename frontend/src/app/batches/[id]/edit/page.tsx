@@ -28,6 +28,14 @@ async function EditBatch({ params }: Pick<PageProps<"/batches/[id]/edit">, "para
   if (result.error) throw new Error("Failed to load data from the API");
   const batch = result.data;
   const bound = (value: number | null | undefined) => String(value ?? "");
+  const editable = {
+    id: batch.id,
+    name: batch.name,
+    startedAt: batch.started_at,
+    yeastName: batch.yeast_name ?? "",
+    yeastMin: bound(batch.yeast_min_temperature_c),
+    yeastMax: bound(batch.yeast_max_temperature_c),
+  };
 
   return (
     <>
@@ -35,16 +43,9 @@ async function EditBatch({ params }: Pick<PageProps<"/batches/[id]/edit">, "para
         ← {batch.name}
       </Link>
       <h1 className="mb-6 text-2xl font-semibold">Edit batch</h1>
-      <NewBatchForm
-        batch={{
-          id: batch.id,
-          name: batch.name,
-          startedAt: batch.started_at,
-          yeastName: batch.yeast_name ?? "",
-          yeastMin: bound(batch.yeast_min_temperature_c),
-          yeastMax: bound(batch.yeast_max_temperature_c),
-        }}
-      />
+      {/* Cache Components keeps this route's form state across navigations; a new key after a save makes the
+          form start from the stored values, not from what it showed before. */}
+      <NewBatchForm key={JSON.stringify(editable)} batch={editable} />
     </>
   );
 }
