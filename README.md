@@ -18,7 +18,7 @@ FastAPI, SQLModel, Alembic and Postgres on the backend; Next.js, Tailwind and sh
 
 ## Quick start
 
-Needs Docker, [uv](https://docs.astral.sh/uv/), Node 22 + pnpm.
+Needs Docker, [uv](https://docs.astral.sh/uv/), Python 3, Node 22 + pnpm.
 
 ```sh
 make setup                      # .env from .env.example, with a new session secret and sign-in key

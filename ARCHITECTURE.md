@@ -24,7 +24,7 @@ Start reading here, by flow:
 - **Identify a user:** `verify_user_token` in `backend/app/oidc.py` checks signature, `iss`, `aud` and `exp` against the issuer's keys; `current_user` in `app/deps.py` maps the result to an `app_user` row (created on first request) and failures to 401, or 503 if the keys can't be fetched. `GET /api/v1/me` returns the caller's id. Routes that return or change an owner's rows take the `current_user` and filter with `owned` (`app/deps.py`), so another owner's row is a 404 (or 422 for a `location_id`), the same as a missing one.
 - **Contract:** FastAPI generates OpenAPI → `make api-types` → `frontend/openapi.json` + `frontend/src/lib/api/schema.d.ts`. The device-facing part is written down in `firmware/README.md`.
 - **Schema:** `backend/app/models.py` → Alembic migrations in `backend/alembic/versions/`.
-- **Run/deploy:** `docker-compose.yml` (db, backend, frontend, with healthchecks, plus `oidc`, the local-only sign-in provider that `make oidc` starts and waits for), one `Dockerfile` per app, CI in `.github/workflows/ci.yml` (its `stack` job runs `make smoke`: builds the images and boots the compose stack).
+- **Run/deploy:** `docker-compose.yml` (db, backend, frontend, with healthchecks, plus `oidc`, the local-only sign-in provider behind the `local-auth` profile, which only `make oidc` starts, waits for and refuses to start without this clone's key), one `Dockerfile` per app, CI in `.github/workflows/ci.yml` (its `stack` job runs `make smoke`: builds the images and boots the compose stack).
 
 ## Boundaries and why they exist
 

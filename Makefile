@@ -25,11 +25,14 @@ OIDC_KEY_PY := import json; from cryptography.hazmat.primitives.asymmetric impor
   jwk.update(kid='default', use='sig', alg='RS256'); \
   print(c({'interactiveLogin': True, 'tokenProvider': {'keyProvider': {'initialKeys': c(jwk), 'algorithm': 'RS256'}}}))
 
+NEW_SECRET := python3 -c "import secrets; print(secrets.token_hex(32))"
+
 # The key is a secret: it only ever passes through the shell variable, never through echo, sed or make's echo.
+# umask 077: .env now holds generated secrets.
 setup:         ## create .env from .env.example with a new session secret and sign-in key (skips an existing file)
 	@if [ -e .env ]; then echo ".env exists, skipped"; \
-	else cfg=$$(cd backend && uv run -q python -c "$(OIDC_KEY_PY)") \
-	  && secret=$$(python3 -c "import secrets; print(secrets.token_hex(32))") \
+	else umask 077 && cfg=$$(cd backend && uv run -q python -c "$(OIDC_KEY_PY)") \
+	  && secret=$$($(NEW_SECRET)) \
 	  && sed "s/^AUTH0_SECRET=$$/AUTH0_SECRET=$$secret/" .env.example > .env \
 	  && printf 'OIDC_JSON_CONFIG=%s\n' "$$cfg" >> .env \
 	  && echo "created .env"; fi
@@ -62,16 +65,18 @@ auth-env:
 	@missing="$(strip $(foreach v,$(AUTH_ENV),$(if $($(v)),,$(v))))"; \
 	[ -z "$$missing" ] || { echo "Missing in .env: $$missing. Fresh clone: run make setup. Older .env: delete it and re-run make setup. Auth0 tenant: see README.md, Quick start." >&2; exit 1; }
 
-# Refuses an http:// (local) issuer without this clone's key: the mock's built-in key is public.
+# Only for an http:// (local) issuer; a no-op for a real tenant. Refuses one without this clone's key:
+# the mock's built-in key is public.
 # The JVM takes a few seconds to boot, so poll discovery before the servers start. Then check that the
 # system resolver maps oidc.localhost, as Node and Python do (curl resolves *.localhost itself).
 oidc:          ## start the local sign-in provider, wait until it answers
 	@set -e; \
 	case "$$AUTH_ISSUER" in [hH][tT][tT][pP]://*) [ -n "$$OIDC_JSON_CONFIG" ] || \
-	  { echo "No OIDC_JSON_CONFIG in .env, so the local sign-in provider would use its public built-in key. Delete .env and run make setup." >&2; exit 1; };; esac; \
+	  { echo "No OIDC_JSON_CONFIG in .env, so the local sign-in provider would use its public built-in key. Delete .env and run make setup." >&2; exit 1; };; \
+	  *) exit 0;; esac; \
 	docker compose up -d oidc; \
 	for i in $$(seq 30); do \
-	  curl -fsS -o /dev/null http://127.0.0.1:9400/default/.well-known/openid-configuration 2>/dev/null && break; \
+	  curl -fsS -m 2 -o /dev/null http://127.0.0.1:9400/default/.well-known/openid-configuration 2>/dev/null && break; \
 	  [ $$i -lt 30 ] || { echo "The local sign-in provider (oidc) didn't answer within 30 s: see make logs." >&2; exit 1; }; \
 	  sleep 1; \
 	done; \
@@ -112,17 +117,19 @@ audit:         ## known CVEs in runtime deps (own CI workflow, not part of `chec
 up: auth-env oidc  ## full stack in Docker
 	docker compose up --build
 
+# --profile local-auth (here, in logs and in db-reset): also reach `oidc`, which `make oidc` starts outside
+# the default profile.
 down:          ## stop the compose stack (keeps the database volume)
-	docker compose down
+	docker compose --profile local-auth down
 
 logs:          ## tail the compose stack's logs
-	docker compose logs -f --tail=100
+	docker compose --profile local-auth logs -f --tail=100
 
 # No -p: like db and up this acts on the default compose project, never on smoke's brew-smoke.
 db-reset:      ## wipe the dev database volume (asks first)
 	@printf "Deletes the dev database volume (pgdata) and stops the compose stack. Type 'yes' to continue: "; \
 	read answer; [ "$$answer" = yes ] || { echo aborted; exit 1; }; \
-	docker compose down -v
+	docker compose --profile local-auth down -v
 
 # Own compose project, so a run never touches the dev stack's volume. Host ports are shared with
 # the dev stack: stop it first (a clash fails fast with "port is already allocated").
@@ -134,7 +141,7 @@ smoke:         ## build the images, boot the compose stack, assert it works end 
 	@set -e; \
 	export COMPOSE_PROJECT_NAME=brew-smoke \
 	  AUTH0_DOMAIN=smoke.invalid AUTH0_CLIENT_ID=smoke AUTH0_CLIENT_SECRET=smoke \
-	  AUTH0_SECRET=$$(python3 -c "import secrets; print(secrets.token_hex(32))") APP_BASE_URL=http://localhost:3000 \
+	  AUTH0_SECRET=$$($(NEW_SECRET)) APP_BASE_URL=http://localhost:3000 \
 	  AUTH_AUDIENCE=https://smoke.invalid/api AUTH_ISSUER=https://smoke.invalid/; \
 	trap 'rc=$$?; set +e; if [ $$rc -ne 0 ]; then docker compose ps -a; docker compose logs; fi; docker compose down -v --remove-orphans; exit $$rc' EXIT; \
 	trap 'exit 130' INT; trap 'exit 143' TERM; \
