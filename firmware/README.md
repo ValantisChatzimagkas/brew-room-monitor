@@ -2,11 +2,11 @@
 
 This file is the contract the backend promises to keep.
 
-## 1. Register a device (once, from your laptop)
+## 1. Register a device (once)
 
-Registering needs a user token (`$USER_TOKEN`, see "Getting a user token"): the location and the device belong to the user who creates them, and only that user sees or changes them.
+On the dashboard, "Register a device" registers it for the signed-in user and shows its token once. The location and the device belong to the user who creates them, and only that user sees or changes them.
 
-An `ambient` device needs the room it measures. Create the location once (`GET /api/v1/locations` lists yours), then register the device with its `id`:
+Or with curl, which needs a user token (`$USER_TOKEN`, see "Getting a user token"). An `ambient` device needs the room it measures. Create the location once (`GET /api/v1/locations` lists yours), then register the device with its `id`:
 
 ```sh
 curl -X POST http://<server>:8000/api/v1/locations \

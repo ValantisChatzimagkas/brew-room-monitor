@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
 import { ReadingTime } from "@/components/reading-time";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getApi, type Device, type Reading } from "@/lib/api/client";
 import { formatValue, METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
@@ -13,7 +14,12 @@ import { formatAge } from "@/lib/time";
 export default function Home() {
   return (
     <main className="mx-auto w-full max-w-4xl p-6">
-      <h1 className="mb-6 text-2xl font-semibold">Brew Room Monitor</h1>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-semibold">Brew Room Monitor</h1>
+        <Link href="/devices/new" className={buttonVariants({ variant: "outline" })}>
+          Register a device
+        </Link>
+      </div>
       <Suspense fallback={<p className="text-muted-foreground">Loading sensors…</p>}>
         <DeviceList />
       </Suspense>
@@ -29,7 +35,15 @@ async function DeviceList() {
   if (devices.error) throw new Error("Failed to load data from the API");
 
   if (devices.data.length === 0) {
-    return <p className="text-muted-foreground">No devices yet. Register one via POST /api/v1/devices.</p>;
+    return (
+      <p className="text-muted-foreground">
+        No devices yet.{" "}
+        <Link href="/devices/new" className="underline">
+          Register your first device
+        </Link>
+        .
+      </p>
+    );
   }
 
   // Newest reading per device and metric: a quiet device must not fall out of a global "newest N" window.
