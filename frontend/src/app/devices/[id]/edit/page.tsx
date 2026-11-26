@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { EditDeviceForm } from "@/components/edit-device-form";
+import type { Room } from "@/components/room-field";
 import { findDevice, getApi } from "@/lib/api/client";
 import { NEW_ROOM } from "@/lib/devices";
 import { parseId } from "@/lib/history";
@@ -25,9 +26,13 @@ async function EditDevice({ params }: Pick<PageProps<"/devices/[id]/edit">, "par
   const api = await getApi();
   const device = await findDevice(id);
   if (!device) notFound();
-  const locations = await api.GET("/api/v1/locations", { params: { query: { limit: 500 } } });
-  if (locations.error) throw new Error("Failed to load data from the API");
-  const rooms = locations.data.map(({ id, name }) => ({ id, name }));
+  let rooms: Room[] = [];
+  // Only an ambient device's room is editable, so an in_vessel one gets no room list.
+  if (device.kind === "ambient") {
+    const locations = await api.GET("/api/v1/locations", { params: { query: { limit: 500 } } });
+    if (locations.error) throw new Error("Failed to load data from the API");
+    rooms = locations.data.map(({ id, name }) => ({ id, name }));
+  }
   // A legacy ambient device without a room starts on the first room: saving needs one.
   const initialId = device.location?.id ?? rooms[0]?.id;
   const initialRoom = initialId === undefined ? NEW_ROOM : String(initialId);
