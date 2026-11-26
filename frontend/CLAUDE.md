@@ -19,7 +19,7 @@ Next 16 with `cacheComponents` on. APIs differ from older Next: check `node_modu
 ## Components
 - Server Components by default. `"use client"` only on small interactive leaves (charts, toggles, forms with local state).
 - Route files in `src/app/`; shared UI in `src/components/`; non-UI helpers in `src/lib/`. Create those folders when first needed.
-- Every route that fetches data has a sensible loading state and is covered by an `error.tsx`.
+- Every route that fetches data has a sensible loading state and is covered by an `error.tsx`. A missing or foreign id calls `notFound()` (never a custom "not found" message in the page), rendered by `src/app/not-found.tsx`.
 
 ## Design system (shadcn on Base UI)
 - Before writing UI, in this order: reuse from `src/components/` → use `src/components/ui/` → `pnpm exec shadcn add <name>` (read `pnpm exec shadcn docs <name>` first) → only then compose a new component in `src/components/` from `ui/` pieces.
