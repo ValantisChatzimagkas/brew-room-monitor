@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import type { NewBatchState } from "@/app/devices/[id]/batches/new/actions";
 import { getApi } from "@/lib/api/client";
-import { isUnchangedStart, type NewBatchInput, parseId, parseNewBatch } from "@/lib/history";
+import { isUnchangedStart, type NewBatchInput, parseId, parseNewBatch, previousBatch } from "@/lib/history";
 
 /**
  * Saves a batch's name, start and yeast and returns to its page. A public POST endpoint: both arguments come
@@ -30,8 +30,15 @@ export async function editBatch(batchId: number, _prev: NewBatchState, input: Ne
 
   const saved = await api.PATCH("/api/v1/batches/{batch_id}", { ...path, body });
   if (saved.response.status === 404) notFound();
+  // The 409 doesn't say which batch it overlaps, so name it.
   if (saved.response.status === 409) {
-    return { errors: { form: "This start overlaps another batch on this device." }, conflict: null };
+    const list = await api.GET("/api/v1/batches", {
+      params: { query: { device_id: stored.data.device_id, limit: 500 } },
+    });
+    if (list.error) throw new Error("Failed to load data from the API");
+    const previous = previousBatch(list.data, stored.data);
+    if (!previous) return { errors: { form: "This start overlaps another batch on this device." }, conflict: null };
+    return { errors: {}, conflict: { id: previous.id, name: previous.name, endedAt: previous.ended_at } };
   }
   // Only a check `parseNewBatch` doesn't mirror, or a race, gets here; the backend's reason isn't typed.
   if (saved.response.status === 422) {

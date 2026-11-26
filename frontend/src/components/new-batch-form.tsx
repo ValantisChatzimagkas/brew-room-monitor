@@ -89,7 +89,7 @@ function HydratedForm(props: Props) {
         <FieldError>{startReason}</FieldError>
         {ended !== null && (
           <FieldError>
-            A new batch runs until you end it, so it must start after {conflictLink} ended (
+            {batch ? "It" : "A new batch runs until you end it, so it"} must start after {conflictLink} ended (
             {new Date(ended).toLocaleString()}).
           </FieldError>
         )}

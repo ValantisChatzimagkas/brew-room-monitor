@@ -221,6 +221,18 @@ export function blockingBatch<B extends { started_at: string; ended_at: string |
 }
 
 /**
+ * The batch an edited start of `batch` overlaps: only the start moves and a running batch is always its
+ * device's latest, so it is the newest non-voided batch that started before this one.
+ */
+export function previousBatch<B extends { id: number; started_at: string; ended_at: string | null }>(
+  newestFirst: readonly B[],
+  batch: { id: number; started_at: string },
+): B | undefined {
+  const start = Date.parse(batch.started_at);
+  return blockingBatch(newestFirst.filter((b) => b.id !== batch.id && Date.parse(b.started_at) < start));
+}
+
+/**
  * A manual granularity if the API would accept it, else Auto. One bucket of headroom under the cap: the
  * backend measures an open batch's window a moment after this render does.
  */

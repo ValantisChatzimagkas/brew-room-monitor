@@ -19,6 +19,7 @@ import {
   parseNewBatch,
   parseRange,
   pickBucket,
+  previousBatch,
   RANGES,
   rangeSince,
   toBucketPoints,
@@ -306,6 +307,23 @@ describe("blockingBatch", () => {
     ["two ended", [ended, olderEnded], ended],
   ])("%s", (_, newestFirst, expected) => {
     expect(blockingBatch(newestFirst)).toBe(expected);
+  });
+});
+
+describe("previousBatch", () => {
+  const batch = (id: number, started_at: string, ended_at: string | null) => ({ id, started_at, ended_at });
+  const later = batch(1, "2026-01-15T00:00:00Z", null);
+  const edited = batch(2, "2026-01-10T00:00:00Z", "2026-01-12T00:00:00Z");
+  const voided = batch(3, "2026-01-09T00:00:00Z", "2026-01-09T00:00:00Z");
+  const ended = batch(4, "2026-01-05T00:00:00Z", "2026-01-08T00:00:00Z");
+  it.each([
+    ["edited running, one ended before", [{ ...edited, ended_at: null }, ended], ended],
+    ["voided before it is skipped", [edited, voided, ended], ended],
+    ["later batches ignored", [later, edited, ended], ended],
+    ["only the edited batch", [edited], undefined],
+    ["edited is the oldest", [later, edited], undefined],
+  ])("%s", (_, newestFirst, expected) => {
+    expect(previousBatch(newestFirst, edited)).toBe(expected);
   });
 });
 
