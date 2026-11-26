@@ -9,8 +9,8 @@ let client: Auth0Client | undefined;
 /**
  * The SDK client, built on first use rather than at import so `next build` and the image work with no
  * AUTH0_* set (env is read at request time). Holds config only, never per-user state.
- * `openid` only: no `offline_access`, so no refresh token, which Server Components could not persist anyway;
- * an expired access token sends the user back through sign-in. The audience makes Auth0 issue a JWT for the API.
+ * `openid` only: no `offline_access`, so Auth0 issues no refresh token, which Server Components could not persist anyway;
+ * with Auth0 an expired access token sends the user back through sign-in (the local provider issues one anyway, so there the SDK refreshes). The audience makes Auth0 issue a JWT for the API.
  * `allowInsecureRequests` is dev only: on just for an `http://` AUTH0_DOMAIN, refused in production.
  */
 export function getAuth0(): Auth0Client {

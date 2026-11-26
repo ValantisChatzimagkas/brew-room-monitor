@@ -24,6 +24,25 @@ Response contains `token`. It is shown **once**; flash it into the device config
 
 ### Getting a user token
 
+#### Local provider (default)
+
+With the `.env` from `make setup`, `make dev` / `make up` start a local sign-in provider. Sign in as the username you use on the dashboard, so the devices you register are yours there:
+
+```sh
+loc=$(curl -s -o /dev/null -w '%{redirect_url}' -X POST \
+  "http://oidc.localhost:9400/default/authorize?client_id=brew-local&response_type=code&redirect_uri=http://localhost:3000/auth/callback&scope=openid&state=x" \
+  --data-urlencode username=<name> --data-urlencode claims=)
+code=$(printf '%s' "$loc" | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')
+curl -s http://oidc.localhost:9400/default/token -d grant_type=authorization_code -d code="$code" \
+  -d redirect_uri=http://localhost:3000/auth/callback -d client_id=brew-local -d client_secret=any
+```
+
+`export USER_TOKEN=<access_token>`. `GET /api/v1/me` with it should return your user id.
+
+A dashboard session for scripted checks (PR evidence), with a cookie jar: `curl -c jar -b jar -o /dev/null -w '%{redirect_url}' 'http://localhost:3000/auth/login?returnTo=%2F'` gives the authorize URL; POST `username=<name>&claims=` to it (`curl -c jar -b jar -o /dev/null -w '%{redirect_url}' -d username=<name> -d claims= '<authorize URL>'`), which gives the callback URL; `curl -c jar -b jar -o /dev/null '<callback URL>'`. Then `curl -b jar http://localhost:3000/` is signed in. In a browser, type the username in the form.
+
+#### Auth0 tenant
+
 Use the Auth0 [Device Authorization flow](https://auth0.com/docs/get-started/authentication-and-authorization-flow/device-authorization-flow) (check that page if a step below stops working). It gives you a token for your own login, so the devices you register are yours when you later sign in to the frontend. `<tenant>` is the host of the backend's `AUTH_ISSUER`.
 
 1. In the Auth0 dashboard, enable the **Device Code** grant on your application (Application → Settings → Advanced → Grant Types). It is off by default and the request below fails with `unauthorized_client` without it.
