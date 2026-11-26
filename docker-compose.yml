@@ -1,5 +1,5 @@
-# Local full stack: `docker compose up --build` (add `--wait` to return once everything is healthy)
-# Dev with hot reload: `docker compose up db` + run backend/frontend natively (see README).
+# Local full stack: `make up` (starts the local sign-in provider, then `docker compose up --build`)
+# Dev with hot reload: `make dev` (Postgres and the local sign-in provider here, backend/frontend natively).
 services:
   db:
     image: postgres:17-alpine
@@ -52,6 +52,27 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+
+  # Local sign-in provider for dev (`make dev` / `make up` start it through `make oidc`); unused with a
+  # real tenant in .env. Behind a profile so a bare `docker compose up` never starts it. No healthcheck:
+  # the image is distroless (no shell, no HTTP client), so `make oidc` polls discovery instead.
+  oidc:
+    profiles: [local-auth]
+    image: ghcr.io/navikt/mock-oauth2-server:2.3.0@sha256:dfcc1b60abe7414d2754767fceaec62a5dc79a10e543804069f69287b277e314
+    environment:
+      # The mock derives `iss` from the Host header, so the container port must equal the host port.
+      SERVER_PORT: "9400"
+      # This clone's signing key (and the login form, which any JSON_CONFIG turns off) from `make setup`:
+      # the image's own key is public, so anyone could mint tokens with it. Without the key the value is
+      # empty and the mock refuses to boot, however it is started. `:-`, not `:?`: compose interpolates
+      # every service, so `:?` would break `make down` / `make logs` for a real tenant.
+      JSON_CONFIG: ${OIDC_JSON_CONFIG:-}
+    # Loopback only: its form signs in any username for whoever reaches it.
+    ports: ["127.0.0.1:9400:9400"]
+    networks:
+      default:
+        # Containers and the browser use one issuer URL, http://oidc.localhost:9400/default.
+        aliases: [oidc.localhost]
 
 volumes:
   pgdata:
