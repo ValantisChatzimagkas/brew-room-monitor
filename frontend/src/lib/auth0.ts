@@ -2,6 +2,8 @@ import "server-only";
 
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
 
+import { allowInsecureProvider } from "@/lib/auth-provider";
+
 let client: Auth0Client | undefined;
 
 /**
@@ -9,6 +11,7 @@ let client: Auth0Client | undefined;
  * AUTH0_* set (env is read at request time). Holds config only, never per-user state.
  * `openid` only: no `offline_access`, so no refresh token, which Server Components could not persist anyway;
  * an expired access token sends the user back through sign-in. The audience makes Auth0 issue a JWT for the API.
+ * `allowInsecureRequests` is dev only: on just for an `http://` AUTH0_DOMAIN, refused in production.
  */
 export function getAuth0(): Auth0Client {
   if (client) return client;
@@ -17,6 +20,7 @@ export function getAuth0(): Auth0Client {
   client = new Auth0Client({
     authorizationParameters: { audience, scope: "openid" },
     enableAccessTokenEndpoint: false,
+    allowInsecureRequests: allowInsecureProvider(process.env.AUTH0_DOMAIN, process.env.ENVIRONMENT),
   });
   return client;
 }
