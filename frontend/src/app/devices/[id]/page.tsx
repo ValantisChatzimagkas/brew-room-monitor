@@ -82,6 +82,9 @@ async function DeviceDetail({
           </span>
         )}
         <div className="mt-4 flex flex-wrap gap-2">
+          <Link href={`/devices/${id}/edit`} className={buttonVariants({ variant: "outline" })}>
+            Edit
+          </Link>
           {/* Always rendered, ahead of the conditional Revoke: the refresh() after a re-key clears `revoked_at`,
               and remounting this form would drop the new token on screen. */}
           <RekeyDeviceForm deviceId={id} deviceName={device.name} />

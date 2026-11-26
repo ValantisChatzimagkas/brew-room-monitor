@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { findRoom, NEW_ROOM, parseNewDevice } from "./devices";
+import { findRoom, NEW_ROOM, parseDeviceEdit, parseNewDevice } from "./devices";
 
 describe("parseNewDevice", () => {
   const base = { name: "Shelf sensor", kind: "ambient", room: "3", newRoom: "" };
@@ -60,6 +60,38 @@ describe("parseNewDevice", () => {
     ["a field not a string", { ...base, room: 3 }],
   ])("%s -> reload", (_, input) => {
     expect(parseNewDevice(input)).toEqual({ errors: { form: "Reload the page and try again." } });
+  });
+});
+
+describe("parseDeviceEdit", () => {
+  const base = { name: "Shelf sensor", room: "3", newRoom: "" };
+  const reload = { errors: { form: "Reload the page and try again." } };
+  it.each<[string, "ambient" | "in_vessel", unknown, unknown]>([
+    [
+      "ambient, existing room",
+      "ambient",
+      base,
+      { device: { name: "Shelf sensor", kind: "ambient", locationId: 3 } },
+    ],
+    [
+      "ambient, new room",
+      "ambient",
+      { ...base, room: NEW_ROOM, newRoom: "Cellar" },
+      { device: { name: "Shelf sensor", kind: "ambient", newRoom: "Cellar" } },
+    ],
+    ["ambient, no room", "ambient", { ...base, room: "" }, { errors: { room: "Pick a room." } }],
+    ["in_vessel, room ignored", "in_vessel", base, { device: { name: "Shelf sensor", kind: "in_vessel" } }],
+    [
+      "a kind sent by the client is ignored",
+      "ambient",
+      { ...base, kind: "in_vessel", room: "" },
+      { errors: { room: "Pick a room." } },
+    ],
+    ["name of spaces", "ambient", { ...base, name: "   " }, { errors: { name: "Enter a name." } }],
+    ["not an object", "ambient", "x", reload],
+    ["newRoom missing", "ambient", { name: "Shelf sensor", room: "3" }, reload],
+  ])("%s", (_, kind, input, expected) => {
+    expect(parseDeviceEdit(input, kind)).toEqual(expected);
   });
 });
 

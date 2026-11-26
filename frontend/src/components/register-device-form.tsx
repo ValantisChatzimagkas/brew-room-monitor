@@ -5,13 +5,12 @@ import { type FormEvent, startTransition, useActionState, useState } from "react
 
 import { registerDevice } from "@/app/devices/new/actions";
 import { DeviceToken, FIRMWARE_DOCS, useResetOnHide } from "@/components/device-token";
+import { type Room, RoomField } from "@/components/room-field";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { NEW_ROOM } from "@/lib/devices";
-
-type Room = { id: number; name: string };
 
 /**
  * Form that registers a device and then shows its token once. The token lives only in the inner form's
@@ -90,36 +89,14 @@ function OpenForm({ rooms, onReset }: { rooms: Room[]; onReset: () => void }) {
         <FieldError>{errors.kind}</FieldError>
       </Field>
       {kind === "ambient" && (
-        <Field data-invalid={errors.room !== undefined || undefined}>
-          <FieldLabel htmlFor="device-room">Room</FieldLabel>
-          <NativeSelect
-            id="device-room"
-            value={room}
-            onChange={(e) => setRoom(e.target.value)}
-            aria-invalid={errors.room !== undefined || undefined}
-          >
-            {rooms.map((r) => (
-              <NativeSelectOption key={r.id} value={String(r.id)}>
-                {r.name}
-              </NativeSelectOption>
-            ))}
-            <NativeSelectOption value={NEW_ROOM}>New room…</NativeSelectOption>
-          </NativeSelect>
-          <FieldError>{errors.room}</FieldError>
-        </Field>
-      )}
-      {kind === "ambient" && room === NEW_ROOM && (
-        <Field data-invalid={errors.newRoom !== undefined || undefined}>
-          <FieldLabel htmlFor="device-new-room">Room name</FieldLabel>
-          <Input
-            id="device-new-room"
-            value={newRoom}
-            maxLength={64}
-            onChange={(e) => setNewRoom(e.target.value)}
-            aria-invalid={errors.newRoom !== undefined || undefined}
-          />
-          <FieldError>{errors.newRoom}</FieldError>
-        </Field>
+        <RoomField
+          rooms={rooms}
+          room={room}
+          onRoomChange={setRoom}
+          newRoom={newRoom}
+          onNewRoomChange={setNewRoom}
+          errors={errors}
+        />
       )}
       <FieldError>{errors.form}</FieldError>
       <div className="flex gap-2">
