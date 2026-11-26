@@ -10,6 +10,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { NEW_ROOM } from "@/lib/devices";
 
 type Room = { id: number; name: string };
 
@@ -41,7 +42,8 @@ export function RegisterDeviceForm({ rooms }: { rooms: Room[] }) {
 function OpenForm({ rooms, onReset }: { rooms: Room[]; onReset: () => void }) {
   const [name, setName] = useState("");
   const [kind, setKind] = useState("ambient");
-  const [room, setRoom] = useState(rooms[0] ? String(rooms[0].id) : "");
+  const [room, setRoom] = useState(rooms[0] ? String(rooms[0].id) : NEW_ROOM);
+  const [newRoom, setNewRoom] = useState("");
   const [state, formAction, pending] = useActionState(registerDevice, { errors: {}, created: null });
   const { errors, created } = state;
 
@@ -75,7 +77,7 @@ function OpenForm({ rooms, onReset }: { rooms: Room[]; onReset: () => void }) {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    startTransition(() => formAction({ name, kind, room, newRoom: "" }));
+    startTransition(() => formAction({ name, kind, room, newRoom }));
   }
 
   return (
@@ -113,14 +115,27 @@ function OpenForm({ rooms, onReset }: { rooms: Room[]; onReset: () => void }) {
             onChange={(e) => setRoom(e.target.value)}
             aria-invalid={errors.room !== undefined || undefined}
           >
-            {rooms.length === 0 && <NativeSelectOption value="">No rooms yet</NativeSelectOption>}
             {rooms.map((r) => (
               <NativeSelectOption key={r.id} value={String(r.id)}>
                 {r.name}
               </NativeSelectOption>
             ))}
+            <NativeSelectOption value={NEW_ROOM}>New room…</NativeSelectOption>
           </NativeSelect>
           <FieldError>{errors.room}</FieldError>
+        </Field>
+      )}
+      {kind === "ambient" && room === NEW_ROOM && (
+        <Field data-invalid={errors.newRoom !== undefined || undefined}>
+          <FieldLabel htmlFor="device-new-room">Room name</FieldLabel>
+          <Input
+            id="device-new-room"
+            value={newRoom}
+            maxLength={64}
+            onChange={(e) => setNewRoom(e.target.value)}
+            aria-invalid={errors.newRoom !== undefined || undefined}
+          />
+          <FieldError>{errors.newRoom}</FieldError>
         </Field>
       )}
       <FieldError>{errors.form}</FieldError>
