@@ -4,6 +4,7 @@
 - `app/main.py` app + router registration · `app/config.py` settings · `app/db.py` engine/session · `app/oidc.py` user-JWT verification (fetches the issuer's keys)
 - `app/models.py` tables and API schemas · `app/deps.py` shared dependencies (session, auth), `save_or_conflict` (commit, unique clash → 409) and `get_batch_or_404`
 - `app/routers/<resource>.py` one router per resource, mounted under `/api/v1`
+- `app/seed.py` local demo data through the HTTP API (`make seed`)
 - Add `app/services/<x>.py` only when logic is shared by 2+ routes or is non-trivial domain logic (e.g. yeast insights). Pure functions there, easy to unit test.
 
 ## FastAPI
@@ -37,7 +38,7 @@
 - Real Postgres (`brew_test` DB, created automatically; needs `make db`). Never SQLite, never a mocked session. `_database` in `tests/conftest.py` builds its schema with `alembic upgrade head` once per session (tables are emptied between tests), so a migration is tested the way production runs it.
 - Any warning fails the run. Ignore one on purpose only via `filterwarnings` in `pyproject.toml`, with a reason comment beside it.
 - Go through the HTTP API with the `client`, `user_headers`, `device_headers` fixtures in `tests/conftest.py`. Add a fixture there only when a second test needs it.
-- One file per router (`tests/test_<router>.py`), plus `tests/test_auth.py` and `tests/test_migrations.py` (a data migration, run against the real test DB) as the cross-cutting exceptions. Plain unit tests only for pure functions in `app/services/` and startup validation in `app/config.py` (`tests/test_config.py`).
+- One file per router (`tests/test_<router>.py`), plus `tests/test_auth.py`, `tests/test_migrations.py` (a data migration, run against the real test DB) and `tests/test_seed.py` (drives `app/seed.py` through `client`) as the cross-cutting exceptions. Plain unit tests only for pure functions in `app/services/` and startup validation in `app/config.py` (`tests/test_config.py`).
 - `tests/test_auth.py` walks every registered route (missing, unknown and wrong-kind token → 401), so don't write per-route auth tests. A new device-token route goes in `DEVICE_ROUTES`, a new user-JWT route in `USER_ROUTES`, a new public route in `EXEMPT_PATHS` (needs a reason); a route in no table must reject every token kind.
 - User-JWT tests sign tokens with the local fake issuer fixture (`issuer`, `make_user_token`) in `tests/conftest.py`; never mock `app/oidc.py` (patching its `JWKS_*` tuning constants is fine).
 - See `test_rejects_bad_payloads` in `tests/test_readings.py` for the table style: many invalid inputs, one test.
