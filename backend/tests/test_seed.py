@@ -1,11 +1,21 @@
 from datetime import datetime, timedelta
 
 import pytest
-from app.seed import DEVICE_NAME, LOCATION_NAME, YEAST_MAX_C, YEAST_MIN_C, main, seed
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
 from app.models import utcnow
+from app.seed import (
+    DEVICE_NAME,
+    HISTORY,
+    LOCATION_NAME,
+    STEP,
+    YEAST_MAX_C,
+    YEAST_MIN_C,
+    main,
+    seed,
+)
+from tests.conftest import AUDIENCE
 
 
 def test_seed_creates_fresh_demo_data(client: TestClient, user_headers: dict[str, str]) -> None:
@@ -51,18 +61,22 @@ def test_seed_rerun_adds_no_duplicates_and_stays_private(
     for path in ("/api/v1/locations", "/api/v1/devices", "/api/v1/batches"):
         assert len(client.get(path, headers=user_headers).json()) == 1, path
         assert client.get(path, headers=other_user_headers).json() == [], path
+    # Resent, not doubled: one run's grid slots, plus one if the runs straddle a slot.
+    temperatures = client.get(
+        "/api/v1/readings", params={"metric": "temperature_c", "limit": 5000}, headers=user_headers
+    ).json()
+    assert len(temperatures) <= HISTORY // STEP + 2
 
 
-@pytest.mark.parametrize("issuer", [None, "https://tenant.example/"])
+@pytest.mark.parametrize(
+    "env", [{}, {"AUTH_ISSUER": "https://tenant.example/", "AUTH_AUDIENCE": AUDIENCE}]
+)
 def test_main_refuses_non_local_issuer(
-    issuer: str | None, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    env: dict[str, str], monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    if issuer is None:
-        monkeypatch.delenv("AUTH_ISSUER", raising=False)
-        monkeypatch.delenv("AUTH_AUDIENCE", raising=False)
-    else:
-        monkeypatch.setenv("AUTH_ISSUER", issuer)
-        monkeypatch.setenv("AUTH_AUDIENCE", "https://api.brew.test")
+    # {}: unset, as conftest leaves it.
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
     get_settings.cache_clear()
     try:
         # A closed port: reaching the API would end in the "not reachable" exit instead.

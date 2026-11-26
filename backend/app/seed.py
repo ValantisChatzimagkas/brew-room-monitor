@@ -169,8 +169,6 @@ def local_user_token(issuer: str, username: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
-    logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per request drowns the summary
     parser = argparse.ArgumentParser(prog="python -m app.seed", description=__doc__)
     parser.add_argument("--api-url", required=True)
     parser.add_argument("--user", default="dev")
@@ -199,6 +197,10 @@ def main(argv: list[str] | None = None) -> int:
             "%s %s failed: %s", e.request.method, e.request.url.path, e.response.status_code
         )
         return 1
+    except httpx.HTTPError as e:
+        # The type only: a timeout mid-upload is no reason for a traceback.
+        logger.error("Request to the API at %s failed: %s", args.api_url, type(e).__name__)
+        return 1
     logger.info(
         "Seeded %s/%s/%s for user %s: sign in as %s",
         LOCATION_NAME,
@@ -211,4 +213,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # Here, not in main(): tests call main() and must not get process-wide logging changes.
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per request drowns the summary
     raise SystemExit(main())
