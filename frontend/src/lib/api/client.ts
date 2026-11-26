@@ -18,6 +18,7 @@ export type YeastFit = components["schemas"]["YeastFit"];
 export type TemperatureNote = components["schemas"]["TemperatureNote"];
 export type ReadingBucket = components["schemas"]["ReadingBucket"];
 export type BucketSize = components["schemas"]["BucketSize"];
+export type DeviceKind = components["schemas"]["DeviceKind"];
 
 // A 401 this soon after sign-in means the backend rejects tokens Auth0 just issued (wrong AUTH_ISSUER or
 // AUTH_AUDIENCE), not that the session aged out. Redirecting would loop through Auth0 silently.

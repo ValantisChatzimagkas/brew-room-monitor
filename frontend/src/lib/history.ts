@@ -133,7 +133,7 @@ export type NewBatchInput = Record<NewBatchField, string>;
 export type NewBatchErrors = Partial<Record<NewBatchField | "form", string>>;
 
 /** `BatchBase` caps `name` and `yeast_name` at 64 characters. */
-const NAME_MAX = 64;
+export const NAME_MAX = 64;
 
 function isNewBatchInput(input: unknown): input is NewBatchInput {
   if (typeof input !== "object" || input === null) return false;
