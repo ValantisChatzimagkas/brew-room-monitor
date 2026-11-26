@@ -20,17 +20,19 @@ export async function startBatch(deviceId: number, _prev: NewBatchState, input: 
   // A foreign device is not found like a missing one, before the POST.
   const device = await findDevice(id);
   if (!device) notFound();
-  // The backend still accepts a batch on a revoked device; only the UI refuses it.
-  if (device.revoked_at !== null) {
-    return { errors: { form: "This device is revoked, so it can't start a batch." }, conflict: null };
-  }
 
   const parsed = parseNewBatch(input, new Date());
   if ("errors" in parsed) return { errors: parsed.errors, conflict: null };
 
   const saved = await api.POST("/api/v1/batches", { body: { ...parsed.body, device_id: id } });
-  // Any overlap is a 409, not only a running batch, so name the batch that blocks this start.
+  // A 409 is a revoked device or an overlap; ask the API which. Any overlap is a 409, not only a
+  // running batch, so name the batch that blocks this start.
   if (saved.response.status === 409) {
+    const now = await findDevice(id);
+    if (!now) notFound();
+    if (now.revoked_at !== null) {
+      return { errors: { form: "This device is revoked, so it can't start a batch." }, conflict: null };
+    }
     const list = await api.GET("/api/v1/batches", { params: { query: { device_id: id, limit: 500 } } });
     if (list.error) throw new Error("Failed to load data from the API");
     const blocking = blockingBatch(list.data);
