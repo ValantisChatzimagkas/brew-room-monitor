@@ -5,6 +5,7 @@ import json
 import time
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import urlsplit
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -196,3 +197,24 @@ def test_rotated_key_is_picked_up(
 
     res = client.get(ME, headers={"Authorization": f"Bearer {make_user_token()}"})
     assert res.status_code == 200
+
+
+def test_reused_issuer_url_gets_its_own_keys(
+    client: TestClient, issuer: FakeIssuer, user_headers: dict[str, str]
+) -> None:
+    # Guards the suite, not the app: FakeIssuer must start cold, or a reused port gives 401.
+    assert client.get(ME, headers=user_headers).status_code == 200
+    issuer.close()
+    second = FakeIssuer(port=urlsplit(issuer.url).port or 0)
+    try:
+        assert second.url == issuer.url
+        claims = {
+            "iss": second.url,
+            "aud": AUDIENCE,
+            "sub": "auth0|alice",
+            "exp": time.time() + 300,
+        }
+        res = client.get(ME, headers={"Authorization": f"Bearer {second.sign(claims)}"})
+        assert res.status_code == 200
+    finally:
+        second.close()
