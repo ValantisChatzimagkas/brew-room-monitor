@@ -1,4 +1,4 @@
-import { NAME_MAX, parseId } from "./history";
+import { hasStringFields, NAME_MAX, parseId } from "./history";
 
 /** The room picker's value for a room typed on the form. */
 export const NEW_ROOM = "new";
@@ -13,18 +13,13 @@ export type NewDevice =
   | { name: string; kind: "ambient"; locationId: number }
   | { name: string; kind: "ambient"; newRoom: string };
 
-function isNewDeviceInput(input: unknown): input is NewDeviceInput {
-  if (typeof input !== "object" || input === null) return false;
-  return NEW_DEVICE_FIELDS.every((field) => typeof Object.getOwnPropertyDescriptor(input, field)?.value === "string");
-}
-
 /**
  * The device to register, or why each field can't register it, in the user's words. Mirrors the length caps
  * of `DeviceCreate` and `LocationCreate` and the "ambient needs a room" rule; the backend stays the
  * authority. An `in_vessel` device ignores the room. Rejects anything that isn't the form's shape.
  */
 export function parseNewDevice(input: unknown): { device: NewDevice } | { errors: NewDeviceErrors } {
-  if (!isNewDeviceInput(input)) return { errors: { form: "Reload the page and try again." } };
+  if (!hasStringFields(input, NEW_DEVICE_FIELDS)) return { errors: { form: "Reload the page and try again." } };
   const errors: NewDeviceErrors = {};
 
   const name = input.name.trim();

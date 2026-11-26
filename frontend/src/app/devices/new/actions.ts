@@ -53,9 +53,10 @@ export async function registerDevice(_prev: RegisterDeviceState, input: NewDevic
   if (saved.response.status === 409) {
     return { errors: { name: "You already have a device with this name." }, created: null };
   }
-  // A foreign or deleted room is a 422 like a missing one; the backend's reason isn't typed.
+  // A foreign or deleted room is a 422 like a missing one; the backend's reason isn't typed. A room this
+  // action just created or found exists, so its 422 is something else.
   if (saved.response.status === 422) {
-    if (device.kind === "ambient") {
+    if ("locationId" in device) {
       return { errors: { room: "That room no longer exists. Reload the page and pick another." }, created: null };
     }
     return { errors: { form: "The API refused these values. Reload the page and try again." }, created: null };

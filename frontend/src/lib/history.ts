@@ -135,9 +135,10 @@ export type NewBatchErrors = Partial<Record<NewBatchField | "form", string>>;
 /** `BatchBase` caps `name` and `yeast_name` at 64 characters. */
 export const NAME_MAX = 64;
 
-function isNewBatchInput(input: unknown): input is NewBatchInput {
+/** A form's input from a Server Action: an object whose own `fields` are all strings. */
+export function hasStringFields<F extends string>(input: unknown, fields: readonly F[]): input is Record<F, string> {
   if (typeof input !== "object" || input === null) return false;
-  return NEW_BATCH_FIELDS.every((field) => typeof Object.getOwnPropertyDescriptor(input, field)?.value === "string");
+  return fields.every((field) => typeof Object.getOwnPropertyDescriptor(input, field)?.value === "string");
 }
 
 /** An empty value is `null`; anything else must be a finite number. */
@@ -157,7 +158,7 @@ export function parseNewBatch(
   input: unknown,
   now: Date,
 ): { body: Omit<BatchCreate, "device_id" | "ended_at"> } | { errors: NewBatchErrors } {
-  if (!isNewBatchInput(input)) return { errors: { form: "Reload the page and try again." } };
+  if (!hasStringFields(input, NEW_BATCH_FIELDS)) return { errors: { form: "Reload the page and try again." } };
   const errors: NewBatchErrors = {};
 
   const name = input.name.trim();
