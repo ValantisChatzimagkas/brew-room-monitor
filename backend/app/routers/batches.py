@@ -36,6 +36,7 @@ from app.services.insights import (
 router = APIRouter(prefix="/batches", tags=["batches"])
 
 _OVERLAP = "Batch overlaps another batch on this device"
+_REVOKED = "Device is revoked"
 # Far below any brew, and far above what Postgres timestamptz rejects with a 500.
 _EARLIEST = datetime(2000, 1, 1, tzinfo=UTC)
 # A reading stands for the time until the next one; a longer gap means the sensor was off, so the
@@ -76,10 +77,11 @@ def get_batch(batch_id: int, session: SessionDep, user: UserDep) -> BatchDetail:
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_batch(payload: BatchCreate, session: SessionDep, user: UserDep) -> BatchPublic:
-    _ensure_device_exists(session, payload.device_id, user)
+    device = _ensure_device_exists(session, payload.device_id, user)
     started_at = payload.started_at or utcnow()
     _check_window(started_at, payload.ended_at)
     _check_yeast_range(payload.yeast_min_temperature_c, payload.yeast_max_temperature_c)
+    _check_not_revoked(device)
     batch = Batch.model_validate(payload, update={"started_at": started_at})
     save_or_conflict(session, batch, _OVERLAP)
     return BatchPublic.model_validate(batch)
@@ -98,6 +100,9 @@ def update_batch(
         changes.get("yeast_min_temperature_c", batch.yeast_min_temperature_c),
         changes.get("yeast_max_temperature_c", batch.yeast_max_temperature_c),
     )
+    # Only reopening an ended batch starts it again; `ended_at: null` on an open one is a no-op.
+    if batch.ended_at is not None and "ended_at" in changes and changes["ended_at"] is None:
+        _check_not_revoked(session.get_one(Device, batch.device_id))
     batch.sqlmodel_update(changes)
     save_or_conflict(session, batch, _OVERLAP)
     return BatchPublic.model_validate(batch)
@@ -224,9 +229,16 @@ def _yeast_insights(
     return fit, temperature_notes(stats)
 
 
-def _ensure_device_exists(session: Session, device_id: int, user: User) -> None:
+def _ensure_device_exists(session: Session, device_id: int, user: User) -> Device:
     # 422, not a raw FK error swallowed into a 409: the id is part of the payload the caller sent.
     # Another owner's device counts as unknown, so its id is not revealed.
     query = owned(select(Device).where(Device.id == device_id), col(Device.owner_id), user)
-    if session.exec(query).first() is None:
+    device = session.exec(query).first()
+    if device is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown device_id")
+    return device
+
+
+def _check_not_revoked(device: Device) -> None:
+    if device.revoked_at is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, _REVOKED)
