@@ -23,9 +23,10 @@ Needs Docker, [uv](https://docs.astral.sh/uv/), Python 3, Node 22 + pnpm.
 ```sh
 make setup                      # .env from .env.example, with a new session secret and sign-in key
 make dev                        # Postgres + API (:8000/docs) + frontend (:3000); Ctrl-C stops the servers, Postgres stays up
+make seed                       # demo room, device and batch; sign in as dev (needs make dev running)
 ```
 
-Sign-in uses a local OIDC provider that `make dev` and `make up` start: type any username in its form; the same name is the same user. If `oidc.localhost` doesn't resolve on your machine, add `127.0.0.1 oidc.localhost` to `/etc/hosts` (`make oidc` tells you).
+Sign-in uses a local OIDC provider that `make dev` and `make up` start: type any username in its form; the same name is the same user. `make seed` gives the user `dev` demo data (`make seed user=<name>` for another name); re-run it any time to bring the readings up to now. If `oidc.localhost` doesn't resolve on your machine, add `127.0.0.1 oidc.localhost` to `/etc/hosts` (`make oidc` tells you).
 
 To use a real Auth0 tenant instead, create a Regular Web Application (callback `<APP_BASE_URL>/auth/callback`, logout URL `<APP_BASE_URL>`) and an API whose identifier is `AUTH_AUDIENCE`, and put their values in `.env` (names in `.env.example`; background in [ADR 0001](docs/decisions/0001-hosted-oidc-provider-for-user-sign-in.md)). There is no dev bypass: `make dev`, `make dev-frontend` and `make up` refuse to start and name any that are missing.
 

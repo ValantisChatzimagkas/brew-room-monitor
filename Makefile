@@ -1,7 +1,7 @@
 # `dev` needs `wait -n` (bash >= 4.3; macOS ships 3.2, install a newer bash) and job control; /bin/sh may be dash.
 SHELL := bash
 
-.PHONY: help setup db dev dev-backend dev-frontend api-types check-api-types migration migrate check check-backend check-frontend audit auth-env oidc up down logs db-reset smoke
+.PHONY: help setup db dev dev-backend dev-frontend api-types check-api-types migration migrate seed check check-backend check-frontend audit auth-env oidc up down logs db-reset smoke
 
 # Root .env is the only env file: its values reach every recipe (dev-*, check-*, up, smoke).
 # Inside make the file wins over a same-named shell variable; write values unquoted (Makefile syntax).
@@ -101,6 +101,10 @@ migration:     ## make migration m="describe change"
 
 migrate:       ## apply database migrations
 	cd backend && uv run alembic upgrade head
+
+user ?= dev
+seed: auth-env oidc  ## demo room, device, readings and batch for local user `dev` (user=<name> for another); needs make dev or make up running
+	cd backend && uv run python -m app.seed --api-url "$${API_URL:-http://localhost:8000}" --user "$(user)"
 
 check: check-backend check-frontend  ## everything the `backend` and `frontend` CI jobs run (CI calls these targets)
 
