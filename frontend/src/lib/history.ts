@@ -222,14 +222,17 @@ export function blockingBatch<B extends { started_at: string; ended_at: string |
 
 /**
  * The batch an edited start of `batch` overlaps: only the start moves and a running batch is always its
- * device's latest, so it is the newest non-voided batch that started before this one.
+ * device's latest, so it is the newest non-voided batch that started before this one. A voided `batch` can sit
+ * inside that batch's window; then it names none, since "start after it ended" couldn't be met.
  */
 export function previousBatch<B extends { id: number; started_at: string; ended_at: string | null }>(
   newestFirst: readonly B[],
   batch: { id: number; started_at: string },
 ): B | undefined {
   const start = Date.parse(batch.started_at);
-  return blockingBatch(newestFirst.filter((b) => b.id !== batch.id && Date.parse(b.started_at) < start));
+  const previous = blockingBatch(newestFirst.filter((b) => b.id !== batch.id && Date.parse(b.started_at) < start));
+  if (previous === undefined || previous.ended_at === null || Date.parse(previous.ended_at) > start) return undefined;
+  return previous;
 }
 
 /**

@@ -316,14 +316,16 @@ describe("previousBatch", () => {
   const edited = batch(2, "2026-01-10T00:00:00Z", "2026-01-12T00:00:00Z");
   const voided = batch(3, "2026-01-09T00:00:00Z", "2026-01-09T00:00:00Z");
   const ended = batch(4, "2026-01-05T00:00:00Z", "2026-01-08T00:00:00Z");
+  const voidedInside = batch(5, "2026-01-11T00:00:00Z", "2026-01-11T00:00:00Z");
   it.each([
-    ["edited running, one ended before", [{ ...edited, ended_at: null }, ended], ended],
-    ["voided before it is skipped", [edited, voided, ended], ended],
-    ["later batches ignored", [later, edited, ended], ended],
-    ["only the edited batch", [edited], undefined],
-    ["edited is the oldest", [later, edited], undefined],
-  ])("%s", (_, newestFirst, expected) => {
-    expect(previousBatch(newestFirst, edited)).toBe(expected);
+    ["edited running, one ended before", [{ ...edited, ended_at: null }, ended], edited, ended],
+    ["voided before it is skipped", [edited, voided, ended], edited, ended],
+    ["later batches ignored", [later, edited, ended], edited, ended],
+    ["only the edited batch", [edited], edited, undefined],
+    ["edited is the oldest", [later, edited], edited, undefined],
+    ["edited is voided inside another's window", [voidedInside, edited, ended], voidedInside, undefined],
+  ])("%s", (_, newestFirst, editing, expected) => {
+    expect(previousBatch(newestFirst, editing)).toBe(expected);
   });
 });
 
