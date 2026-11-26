@@ -150,13 +150,15 @@ function parseBound(raw: string): number | null | "invalid" {
 }
 
 /**
- * The new batch's body, or why each field can't start it, in the user's words. Mirrors the backend's
- * `_check_window` (future start) and `_check_yeast_range` (one bound only, min above max; equal allowed) and
- * `BatchBase`'s length caps; the backend stays the authority. Rejects anything that isn't the form's shape.
+ * The batch's body, or why each field can't save it, in the user's words. Mirrors the backend's
+ * `_check_window` (future start; with `endedAtIso`, a start after the end, equal allowed) and
+ * `_check_yeast_range` (one bound only, min above max; equal allowed) and `BatchBase`'s length caps; the
+ * backend stays the authority. Rejects anything that isn't the form's shape.
  */
 export function parseNewBatch(
   input: unknown,
   now: Date,
+  endedAtIso: string | null = null,
 ): { body: Omit<BatchCreate, "device_id" | "ended_at"> } | { errors: NewBatchErrors } {
   if (!hasStringFields(input, NEW_BATCH_FIELDS)) return { errors: { form: "Reload the page and try again." } };
   const errors: NewBatchErrors = {};
@@ -168,6 +170,9 @@ export function parseNewBatch(
   const start = parseZonedIso(input.startedAt);
   if (start === null) errors.startedAt = "Enter a valid start time.";
   else if (start > now.getTime()) errors.startedAt = "The start time is in the future.";
+  else if (endedAtIso !== null && start > Date.parse(endedAtIso)) {
+    errors.startedAt = "The start time is after the batch ended.";
+  }
 
   const yeastName = input.yeastName.trim();
   if (yeastName.length > NAME_MAX) errors.yeastName = "Keep the yeast name to 64 characters.";
@@ -193,6 +198,15 @@ export function parseNewBatch(
       yeast_max_temperature_c: max,
     },
   };
+}
+
+/**
+ * Whether a submitted start is the stored one as the form showed it: the `datetime-local` input drops
+ * seconds, so an untouched field submits the stored start floored to the minute.
+ */
+export function isUnchangedStart(submittedIso: string, storedIso: string): boolean {
+  const stored = Date.parse(storedIso);
+  return Date.parse(submittedIso) === stored - (stored % MINUTE_MS);
 }
 
 /**

@@ -14,6 +14,7 @@ import {
   GRANULARITIES,
   isIsolated,
   isPartial,
+  isUnchangedStart,
   parseId,
   parseNewBatch,
   parseRange,
@@ -257,6 +258,36 @@ describe("parseNewBatch", () => {
     ["a field not a string", { ...base, yeastMin: 15 }],
   ])("%s -> reload", (_, input) => {
     expect(parseNewBatch(input, now)).toEqual(reload);
+  });
+
+  it.each([
+    ["before the end", "2026-01-19T08:00:00.000Z", body()],
+    ["at the end (voids the batch)", "2026-01-19T09:00:00.000Z", body({ started_at: "2026-01-19T09:00:00.000Z" })],
+    [
+      "after the end",
+      "2026-01-19T09:00:00.001Z",
+      { errors: { startedAt: "The start time is after the batch ended." } },
+    ],
+    [
+      "in the future and after the end",
+      "2026-01-20T00:00:00.001Z",
+      { errors: { startedAt: "The start time is in the future." } },
+    ],
+  ])("ended batch, start %s", (_, startedAt, expected) => {
+    expect(parseNewBatch({ ...base, startedAt }, now, "2026-01-19T09:00:00Z")).toEqual(expected);
+  });
+});
+
+describe("isUnchangedStart", () => {
+  const stored = "2026-01-19T08:00:30.500Z";
+  it.each([
+    ["the stored start floored to the minute", "2026-01-19T08:00:00.000Z", stored, true],
+    ["the same instant with an offset", "2026-01-19T10:00:00+02:00", stored, true],
+    ["a minute later", "2026-01-19T08:01:00.000Z", stored, false],
+    ["a minute earlier", "2026-01-19T07:59:00.000Z", stored, false],
+    ["a stored start on the minute", "2026-01-19T08:00:00.000Z", "2026-01-19T08:00:00Z", true],
+  ])("%s", (_, submitted, storedIso, expected) => {
+    expect(isUnchangedStart(submitted, storedIso)).toBe(expected);
   });
 });
 
