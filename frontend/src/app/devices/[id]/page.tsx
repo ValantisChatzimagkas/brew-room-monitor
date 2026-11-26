@@ -8,6 +8,7 @@ import { BatchYeast } from "@/components/batch-yeast";
 import { MetricChart } from "@/components/metric-chart";
 import { PartialNotice } from "@/components/partial-notice";
 import { ReadingTime } from "@/components/reading-time";
+import { RekeyDeviceForm } from "@/components/rekey-device-form";
 import { RevokeDeviceForm } from "@/components/revoke-device-form";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +82,9 @@ async function DeviceDetail({
           </span>
         )}
         <div className="mt-4 flex flex-wrap gap-2">
+          {/* Always rendered, ahead of the conditional Revoke: the refresh() after a re-key clears `revoked_at`,
+              and remounting this form would drop the new token on screen. */}
+          <RekeyDeviceForm deviceId={id} deviceName={device.name} />
           {device.revoked_at === null && <RevokeDeviceForm deviceId={id} deviceName={device.name} />}
         </div>
         <nav aria-label="Time range" className="mt-4 flex gap-2">
