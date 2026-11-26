@@ -8,6 +8,7 @@ import { BatchYeast } from "@/components/batch-yeast";
 import { MetricChart } from "@/components/metric-chart";
 import { PartialNotice } from "@/components/partial-notice";
 import { ReadingTime } from "@/components/reading-time";
+import { RevokeDeviceForm } from "@/components/revoke-device-form";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { type BatchDetail, findDevice, getApi } from "@/lib/api/client";
@@ -74,6 +75,14 @@ async function DeviceDetail({
         <p className="text-muted-foreground">
           {device.kind} · {device.location?.name ?? "No room"}
         </p>
+        {device.revoked_at !== null && (
+          <span className="text-destructive">
+            <ReadingTime iso={device.revoked_at}>Revoked {formatAge(new Date(device.revoked_at), now)}</ReadingTime>
+          </span>
+        )}
+        <div className="mt-4 flex flex-wrap gap-2">
+          {device.revoked_at === null && <RevokeDeviceForm deviceId={id} deviceName={device.name} />}
+        </div>
         <nav aria-label="Time range" className="mt-4 flex gap-2">
           {RANGES.map((r) => (
             <Link
