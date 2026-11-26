@@ -39,7 +39,8 @@ os.environ.update(
 for _name in ("AUTH_ISSUER", "AUTH_AUDIENCE"):
     os.environ.pop(_name, None)
 
-from app.config import Settings, get_settings  # noqa: E402  env must be set first
+from app import oidc  # noqa: E402  env must be set first
+from app.config import Settings, get_settings  # noqa: E402
 from app.db import engine, get_session  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -161,7 +162,10 @@ def make_batch(client: TestClient, user_headers: dict[str, str]) -> Callable[...
 class FakeIssuer:
     """A real HTTP OIDC issuer on localhost: discovery document + JWKS of a throwaway RSA key."""
 
-    def __init__(self) -> None:
+    def __init__(self, port: int = 0) -> None:
+        # The app caches keys per issuer URL for the life of the process. A new issuer that gets a
+        # reused port would inherit the previous issuer's keys under the same kid and get 401.
+        oidc._provider.cache_clear()
         self.key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         self.other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         self.kid = "key-1"
@@ -194,7 +198,7 @@ class FakeIssuer:
             def log_message(self, format: str, *args: Any) -> None:
                 pass
 
-        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self._server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
         # Trailing slash on purpose: Auth0's `iss` has one, so the exact-match and
         # discovery-URL paths both run.
         self.url = f"http://127.0.0.1:{self._server.server_port}/"
