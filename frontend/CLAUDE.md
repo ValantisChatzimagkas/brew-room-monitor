@@ -20,13 +20,22 @@ Next 16 with `cacheComponents` on. APIs differ from older Next: check `node_modu
 - Server Components by default. `"use client"` only on small interactive leaves (charts, toggles, forms with local state).
 - Route files in `src/app/`; shared UI in `src/components/`; non-UI helpers in `src/lib/`. Create those folders when first needed.
 - Every route that fetches data has a sensible loading state and is covered by an `error.tsx`. A missing or foreign id calls `notFound()` (never a custom "not found" message in the page), rendered by `src/app/not-found.tsx`.
+
+## Page design
+- Order a page top to bottom: the answer the user came for (a status word, such as a batch's yeast status), then what needs attention (in a list, those items first), then the detail (charts, tables, history).
+- An action lives on the page of the object it changes (`End batch` on the batch page). Other pages link there instead of repeating its form.
+- Order actions by how often they're used: the every-brew action first; rare ones (rename, re-key, revoke) one level down, in a menu or a separate view.
+- At most one filled button per view, and it is the view's main action. Filled is the `default` variant of `Button` / `buttonVariants()`, which is also what no `variant` gives. A selected toggle or the current nav item uses another style.
+- Colour marks only what needs a response: out of range, no recent data, a warning about something that can't be undone (revoking a device, a token shown once). Every other state is plain or muted text. A coloured state also carries a word or symbol. Chart series and the yeast-range band are data, not status.
+- Nothing on hover alone: what a `Tooltip`, a `HoverCard`, a `title` or a hover reveal shows is also on the page, or reachable by tap and keyboard.
+- One word per concept: show a status, kind or metric with its label from `src/lib/` (`METRIC_INFO`, `YEAST_STATUS_LABEL`), and domain nouns (Device, Reading, Batch) with the root `CLAUDE.md` glossary terms. Never retype a label in a page or show a raw API value (`in_vessel`).
 - An empty state says what will appear and offers the one action that fills it (`No devices yet. Register your first device`, a link). When only a device can fill it, say what will (`Appears once the device sends a reading`). Never an API path or a curl command.
 
 ## Design system (shadcn on Base UI)
 - Before writing UI, in this order: reuse from `src/components/` → use `src/components/ui/` → `pnpm exec shadcn add <name>` (read `pnpm exec shadcn docs <name>` first) → only then compose a new component in `src/components/` from `ui/` pieces.
 - `src/components/ui/` is vendored shadcn code. Change it through the CLI (`add <name> --diff` for upstream fixes), or add a `cva` variant once two call sites need it. Never edit it to style one page.
 - Official `@shadcn` registry only; `.claude/settings.json` denies `shadcn add` with anything containing `/` (namespace, `owner/repo`, URL, path), so add by bare name: `add dialog`. If `add` installs npm packages, name them in your summary.
-- Colors, radius and fonts come from tokens in `src/app/globals.css`; Tailwind's default palette is removed. A new color (e.g. an insight status) is a new semantic token there, with a dark value.
+- Colors, radius and fonts come from tokens in `src/app/globals.css`; Tailwind's default palette is removed. A new color (e.g. a status that needs a response) is a new semantic token there, with a dark value.
 - Icons: `lucide-react`. Charts: shadcn `chart`. No other UI, icon or animation library, no CSS-in-JS.
 - `eslint.config.mjs` enforces the above (unknown classes, arbitrary values, raw form elements, primitive and foreign imports). Fix the code; don't disable a rule inline.
 
