@@ -8,6 +8,8 @@ import { BatchYeast } from "@/components/batch-yeast";
 import { MetricChart } from "@/components/metric-chart";
 import { PartialNotice } from "@/components/partial-notice";
 import { ReadingTime } from "@/components/reading-time";
+import { RekeyDeviceForm } from "@/components/rekey-device-form";
+import { RevokeDeviceForm } from "@/components/revoke-device-form";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { type BatchDetail, findDevice, getApi } from "@/lib/api/client";
@@ -74,6 +76,20 @@ async function DeviceDetail({
         <p className="text-muted-foreground">
           {device.kind} · {device.location?.name ?? "No room"}
         </p>
+        {device.revoked_at !== null && (
+          <span className="text-destructive">
+            <ReadingTime iso={device.revoked_at}>Revoked {formatAge(new Date(device.revoked_at), now)}</ReadingTime>
+          </span>
+        )}
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link href={`/devices/${id}/edit`} className={buttonVariants({ variant: "outline" })}>
+            Edit
+          </Link>
+          {/* Always rendered: the refresh() after a re-key clears `revoked_at`, and remounting this form would
+              drop the new token on screen. */}
+          <RekeyDeviceForm deviceId={id} deviceName={device.name} />
+          {device.revoked_at === null && <RevokeDeviceForm deviceId={id} deviceName={device.name} />}
+        </div>
         <nav aria-label="Time range" className="mt-4 flex gap-2">
           {RANGES.map((r) => (
             <Link
@@ -122,8 +138,6 @@ async function DeviceBatches({ deviceId, now, revoked }: { deviceId: number; now
     params: { query: { device_id: deviceId, limit: BATCHES_LIMIT } },
   });
   if (list.error) throw new Error("Failed to load data from the API");
-  // Only the newest rows: more than 9 voided batches newer than a running one would show the link wrongly,
-  // and the new-batch page then says the batch is running.
   const canStart = !revoked && blockingBatch(list.data)?.ended_at !== null;
 
   const batches = await Promise.all(

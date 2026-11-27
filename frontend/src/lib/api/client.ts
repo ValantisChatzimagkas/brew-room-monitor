@@ -6,6 +6,7 @@ import { connection } from "next/server";
 import createClient from "openapi-fetch";
 
 import { getAuth0, signInPath } from "@/lib/auth0";
+import { findRoom, type NewDevice, type NewDeviceErrors } from "@/lib/devices";
 
 import type { components, paths } from "./schema";
 
@@ -61,10 +62,40 @@ export async function getApi() {
   return client;
 }
 
-/** No GET /devices/{id}: list at the route's max limit and find. A device beyond the first 500 by name is not found. */
-export async function findDevice(id: number): Promise<Device | undefined> {
+/** All of the user's devices at the route's max limit; a device beyond the first 500 by name is missing. */
+export async function listDevices(): Promise<Device[]> {
   const api = await getApi();
   const devices = await api.GET("/api/v1/devices", { params: { query: { limit: 500 } } });
   if (devices.error) throw new Error("Failed to load data from the API");
-  return devices.data.find((d) => d.id === id);
+  return devices.data;
+}
+
+/** No GET /devices/{id}: find in `listDevices()`. */
+export async function findDevice(id: number): Promise<Device | undefined> {
+  return (await listDevices()).find((d) => d.id === id);
+}
+
+/**
+ * The location id to save a device with: the picked room, a typed room created first, or `null` for an
+ * `in_vessel` device. Here, not in a `"use server"` file, where every export is a public endpoint.
+ */
+export async function resolveRoom(
+  device: NewDevice,
+): Promise<{ locationId: number | null } | { errors: NewDeviceErrors }> {
+  if ("locationId" in device) return { locationId: device.locationId };
+  if (!("newRoom" in device)) return { locationId: null };
+  const api = await getApi();
+  const room = await api.POST("/api/v1/locations", { body: { name: device.newRoom } });
+  // A 409 is a room the user already has (names ignore case), typed again or left by a save that failed
+  // after creating it: use that room, so a retry never fails on the room.
+  if (room.response.status === 409) {
+    const list = await api.GET("/api/v1/locations", { params: { query: { limit: 500 } } });
+    if (list.error) throw new Error("Failed to load data from the API");
+    const existing = findRoom(list.data, device.newRoom);
+    if (!existing) return { errors: { newRoom: "You already have a room with this name. Pick it from the list." } };
+    return { locationId: existing.id };
+  }
+  if (room.response.status === 422) return { errors: { newRoom: "The API refused this room name." } };
+  if (room.error) throw new Error("Failed to save to the API");
+  return { locationId: room.data.id };
 }

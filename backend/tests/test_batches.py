@@ -55,9 +55,14 @@ def test_create_and_list(
     for name, day in (("stout", JAN_1), ("lager", JAN_10)):
         other_id, _ = make_device(f"vessel-{name}")
         assert _create(client, user_headers, other_id, day, name=name) == 201
+    # Ended, but newer than the two old running batches: it must not push them past `limit`.
+    porter_id, _ = make_device("vessel-porter")
+    assert _create(client, user_headers, porter_id, JAN_15, JAN_20, name="porter") == 201
 
     listed = client.get("/api/v1/batches", headers=user_headers).json()
-    assert [b["name"] for b in listed] == ["ipa", "lager", "stout"]
+    assert [b["name"] for b in listed] == ["ipa", "lager", "stout", "porter"]
+    three = client.get("/api/v1/batches", params={"limit": 3}, headers=user_headers).json()
+    assert [b["name"] for b in three] == ["ipa", "lager", "stout"]
     one = client.get("/api/v1/batches", params={"limit": 1}, headers=user_headers).json()
     assert [b["name"] for b in one] == ["ipa"]
 
@@ -205,6 +210,39 @@ def test_update_rejects_nulls_and_unknown_id(
 
     res = client.patch("/api/v1/batches/999", json={"name": "x"}, headers=user_headers)
     assert res.status_code == 404
+
+
+def test_revoked_device_cannot_open_a_batch(
+    client: TestClient,
+    user_headers: dict[str, str],
+    make_device: MakeDevice,
+    make_batch: MakeBatch,
+) -> None:
+    device_id, _ = make_device("vessel-a")
+    batch_id = make_batch(device_id, JAN_1)
+    device_path = f"/api/v1/devices/{device_id}"
+    assert client.post(f"{device_path}/revoke", headers=user_headers).status_code == 200
+
+    batch_path = f"/api/v1/batches/{batch_id}"
+    start = ("POST", "/api/v1/batches", {"name": "ipa", "device_id": device_id})
+    # Run in order: each step sees the state the previous one left.
+    steps: list[tuple[str, str, dict[str, Any] | None, int]] = [
+        ("PATCH", batch_path, {"ended_at": None}, 200),  # already open: not a reopen
+        ("PATCH", batch_path, {"name": "stout"}, 200),
+        ("PATCH", batch_path, {"ended_at": JAN_10.isoformat()}, 200),
+        ("GET", batch_path, None, 200),
+        ("PATCH", batch_path, {"ended_at": None}, 409),  # reopen
+        (*start, 409),
+    ]
+    for method, path, body, expected in steps:
+        res = client.request(method, path, json=body, headers=user_headers)
+        assert res.status_code == expected, (method, body)
+        if expected == 409:
+            assert "revoked" in res.json()["detail"]
+
+    assert client.post(f"{device_path}/rotate", headers=user_headers).status_code == 200
+    method, path, body = start
+    assert client.request(method, path, json=body, headers=user_headers).status_code == 201
 
 
 def test_yeast_range_round_trips(

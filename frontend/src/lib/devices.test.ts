@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { findRoom, NEW_ROOM, parseNewDevice } from "./devices";
+import { findRoom, NEW_ROOM, parseDeviceEdit, parseNewDevice } from "./devices";
 
 describe("parseNewDevice", () => {
   const base = { name: "Shelf sensor", kind: "ambient", room: "3", newRoom: "" };
@@ -60,6 +60,40 @@ describe("parseNewDevice", () => {
     ["a field not a string", { ...base, room: 3 }],
   ])("%s -> reload", (_, input) => {
     expect(parseNewDevice(input)).toEqual({ errors: { form: "Reload the page and try again." } });
+  });
+});
+
+describe("parseDeviceEdit", () => {
+  // The field rules are parseNewDevice's (tested above); these rows pin what edit adds: the stored kind wins.
+  const base = { name: "Shelf sensor", room: "3", newRoom: "" };
+  it.each<[string, "ambient" | "in_vessel", unknown, unknown]>([
+    [
+      "ambient, existing room",
+      "ambient",
+      base,
+      { device: { name: "Shelf sensor", kind: "ambient", locationId: 3 } },
+    ],
+    ["in_vessel, room ignored", "in_vessel", base, { device: { name: "Shelf sensor", kind: "in_vessel" } }],
+    [
+      "client kind in_vessel on an ambient device",
+      "ambient",
+      { ...base, kind: "in_vessel", room: "" },
+      { errors: { room: "Pick a room." } },
+    ],
+    [
+      "client kind ambient on an in_vessel device",
+      "in_vessel",
+      { ...base, kind: "ambient" },
+      { device: { name: "Shelf sensor", kind: "in_vessel" } },
+    ],
+    [
+      "newRoom missing",
+      "ambient",
+      { name: "Shelf sensor", room: "3" },
+      { errors: { form: "Reload the page and try again." } },
+    ],
+  ])("%s", (_, kind, input, expected) => {
+    expect(parseDeviceEdit(input, kind)).toEqual(expected);
   });
 });
 
