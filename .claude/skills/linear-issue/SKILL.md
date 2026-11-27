@@ -28,6 +28,7 @@ Pointers only: where to start (files, endpoints, docs), constraints, assumptions
 - `## Why` and `## Done when` are required. Omit `## Notes` when empty.
 - "Done when" items are the tests and the definition of done: each one checkable through a boundary (see "Tests" in `CLAUDE.md`), not an implementation step.
 - A ticket that adds a route, accepts device input or changes insight logic lists the matching "Must test" cases from `CLAUDE.md` (auth, input bounds, status codes, edge cases) in "Done when".
+- A ticket that adds or changes a page has a "Done when" item naming its click path from the header (`Dashboard → device card → Start batch`). No path yet: the ticket adds the link.
 - Doc that must change with it (`firmware/README.md`, `ARCHITECTURE.md`): name it in Notes, not as a "Done when" item.
 - Blocked-by goes in Linear's native relations, never in the description.
 - Link, don't copy: name the file, endpoint or doc instead of pasting it.
