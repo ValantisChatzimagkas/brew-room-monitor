@@ -4,16 +4,14 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
-import { BatchSummaryTable } from "@/components/batch-summary-table";
-import { BatchYeast } from "@/components/batch-yeast";
+import { BatchTable } from "@/components/batch-table";
 import { MetricChart } from "@/components/metric-chart";
 import { PartialNotice } from "@/components/partial-notice";
 import { ReadingTime } from "@/components/reading-time";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WaitingForReading } from "@/components/waiting-for-reading";
-import { YeastStatusBadge } from "@/components/yeast-status";
-import { type Batch, type BatchDetail, findDevice, getApi } from "@/lib/api/client";
+import { type Batch, type Device, findDevice, getApi, yeastStatuses } from "@/lib/api/client";
 import {
   blockingBatch,
   breakGaps,
@@ -28,7 +26,6 @@ import {
 import { METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
 import { deviceStatus } from "@/lib/status";
 import { formatAge } from "@/lib/time";
-import { AMBIENT_CAVEAT, yeastStatus } from "@/lib/yeast";
 
 const BATCHES_LIMIT = 10;
 
@@ -146,13 +143,7 @@ async function DeviceDetail({
       <section className="mt-8">
         <h2 className="mb-3 text-lg font-medium">Batches</h2>
         <Suspense fallback={<p className="text-muted-foreground">Loading batches…</p>}>
-          <DeviceBatches
-            deviceId={id}
-            batches={batchList.data}
-            canStart={canStart}
-            now={now}
-            ambient={device.kind === "ambient"}
-          />
+          <DeviceBatches device={device} batches={batchList.data} canStart={canStart} now={now} />
         </Suspense>
       </section>
     </>
@@ -160,99 +151,47 @@ async function DeviceDetail({
 }
 
 async function DeviceBatches({
-  deviceId,
-  batches: list,
+  device,
+  batches,
   canStart,
   now,
-  ambient,
 }: {
-  deviceId: number;
+  device: Pick<Device, "id" | "name" | "kind">;
   batches: readonly Batch[];
   canStart: boolean;
   now: Date;
-  ambient: boolean;
 }) {
-  const api = await getApi();
-  const batches = await Promise.all(
-    list.map(async ({ id }) => {
-      const result = await api.GET("/api/v1/batches/{batch_id}", { params: { path: { batch_id: id } } });
-      if (result.error) throw new Error("Failed to load data from the API");
-      return result.data;
-    }),
-  );
+  const statuses = await yeastStatuses(batches, now);
+
+  if (batches.length === 0) {
+    return (
+      <p className="text-muted-foreground">
+        No batches yet.
+        {canStart && (
+          <>
+            {" "}
+            <Link href={`/devices/${device.id}/batches/new`} className="underline">
+              Start the first batch
+            </Link>
+            .
+          </>
+        )}
+      </p>
+    );
+  }
 
   return (
     <>
-      {batches.length === 0 && (
-        <p className="text-muted-foreground">
-          No batches yet.
-          {canStart && (
-            <>
-              {" "}
-              <Link href={`/devices/${deviceId}/batches/new`} className="underline">
-                Start the first batch
-              </Link>
-              .
-            </>
-          )}
-        </p>
-      )}
       {batches.length === BATCHES_LIMIT && (
         <p className="mb-2 text-sm text-muted-foreground">Showing the newest {BATCHES_LIMIT} batches.</p>
       )}
-      <div className="grid gap-6">
-        {batches.map((batch) => (
-          <BatchCard key={batch.id} batch={batch} now={now} ambient={ambient} />
-        ))}
-      </div>
+      <BatchTable
+        batches={batches}
+        statuses={statuses}
+        devices={new Map([[device.id, { name: device.name, kind: device.kind }]])}
+        showDevice={false}
+        now={now}
+      />
     </>
-  );
-}
-
-function BatchCard({ batch, now, ambient }: { batch: BatchDetail; now: Date; ambient: boolean }) {
-  const status = yeastStatus(batch, now);
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between gap-2">
-          <h3>
-            <Link href={`/batches/${batch.id}`} className="hover:underline">
-              {batch.name}
-            </Link>
-          </h3>
-          {batch.ended_at === null && (
-            <span className="text-sm font-normal">
-              <span className="text-primary">Running</span>
-              {status !== null && (
-                <>
-                  {" · "}
-                  <YeastStatusBadge status={status} ambient={ambient} />
-                </>
-              )}
-            </span>
-          )}
-        </CardTitle>
-        <CardDescription>
-          Started <ReadingTime iso={batch.started_at}>{formatAge(new Date(batch.started_at), now)}</ReadingTime>
-          {batch.ended_at === null ? (
-            " · running"
-          ) : (
-            <>
-              {" · ended "}
-              <ReadingTime iso={batch.ended_at}>{formatAge(new Date(batch.ended_at), now)}</ReadingTime>
-            </>
-          )}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {status !== null && ambient && <p className="mb-2 text-sm text-muted-foreground">{AMBIENT_CAVEAT}</p>}
-        <BatchYeast batch={batch} />
-        {batch.metrics.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No readings in this batch&apos;s window.</p>
-        ) : (
-          <BatchSummaryTable metrics={batch.metrics} now={now} />
-        )}
-      </CardContent>
-    </Card>
   );
 }

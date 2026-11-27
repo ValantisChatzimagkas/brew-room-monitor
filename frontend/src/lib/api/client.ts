@@ -7,6 +7,7 @@ import createClient from "openapi-fetch";
 
 import { getAuth0, signInPath } from "@/lib/auth0";
 import { findRoom, type NewDevice, type NewDeviceErrors } from "@/lib/devices";
+import { yeastRange, type YeastStatus, yeastStatus } from "@/lib/yeast";
 
 import type { components, paths } from "./schema";
 
@@ -74,6 +75,27 @@ export async function listDevices(): Promise<Device[]> {
 /** No GET /devices/{id}: find in `listDevices()`. */
 export async function findDevice(id: number): Promise<Device | undefined> {
   return (await listDevices()).find((d) => d.id === id);
+}
+
+/** Each batch's yeast status by id; a batch without one (ended, no range, or no status) is missing. */
+export async function yeastStatuses(batches: readonly Batch[], now: Date): Promise<Map<number, YeastStatus>> {
+  const api = await getApi();
+  // Only a running batch with a range can have a status, so only those need the detail (its newest reading).
+  const details = await Promise.all(
+    batches
+      .filter((b) => b.ended_at === null && yeastRange(b) !== null)
+      .map(async ({ id }) => {
+        const result = await api.GET("/api/v1/batches/{batch_id}", { params: { path: { batch_id: id } } });
+        if (result.error) throw new Error("Failed to load data from the API");
+        return result.data;
+      }),
+  );
+  const statuses = new Map<number, YeastStatus>();
+  for (const detail of details) {
+    const status = yeastStatus(detail, now);
+    if (status !== null) statuses.set(detail.id, status);
+  }
+  return statuses;
 }
 
 /**
