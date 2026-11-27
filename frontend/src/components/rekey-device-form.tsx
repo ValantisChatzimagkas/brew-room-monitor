@@ -3,8 +3,9 @@
 import { useActionState, useState } from "react";
 
 import { rekeyDevice } from "@/app/devices/[id]/actions";
-import { DeviceToken, FIRMWARE_DOCS, useResetOnHide } from "@/components/device-token";
+import { DeviceToken, useResetOnHide } from "@/components/device-token";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { FIRMWARE_DOCS } from "@/lib/devices";
 
 /**
  * "Re-key" button that opens an inline confirmation, then shows the new token once. The token lives only in

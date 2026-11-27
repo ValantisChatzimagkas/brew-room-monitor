@@ -12,6 +12,7 @@ import { RekeyDeviceForm } from "@/components/rekey-device-form";
 import { RevokeDeviceForm } from "@/components/revoke-device-form";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { WaitingForReading } from "@/components/waiting-for-reading";
 import { YeastStatusBadge } from "@/components/yeast-status";
 import { type BatchDetail, findDevice, getApi } from "@/lib/api/client";
 import {
@@ -25,6 +26,7 @@ import {
   toPoints,
 } from "@/lib/history";
 import { METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
+import { deviceStatus } from "@/lib/status";
 import { formatAge } from "@/lib/time";
 import { AMBIENT_CAVEAT, yeastStatus } from "@/lib/yeast";
 
@@ -71,6 +73,14 @@ async function DeviceDetail({
   );
   const withRows = results.filter(({ rows }) => rows.length > 0);
 
+  // An empty range can still hide older readings: only a device with none at all is waiting for its first.
+  let waiting = false;
+  if (withRows.length === 0) {
+    const newest = await api.GET("/api/v1/readings", { params: { query: { device_id: id, limit: 1 } } });
+    if (newest.error) throw new Error("Failed to load data from the API");
+    waiting = deviceStatus(device, newest.data, now) === "waiting";
+  }
+
   return (
     <>
       <header className="mb-6">
@@ -105,7 +115,9 @@ async function DeviceDetail({
           ))}
         </nav>
       </header>
-      {withRows.length === 0 ? (
+      {waiting ? (
+        <WaitingForReading />
+      ) : withRows.length === 0 ? (
         <p className="text-muted-foreground">No readings in the last {range}.</p>
       ) : (
         <div className="grid gap-6">

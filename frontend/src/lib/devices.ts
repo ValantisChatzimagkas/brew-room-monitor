@@ -1,5 +1,8 @@
 import { hasStringFields, NAME_MAX, parseId } from "./history";
 
+export const FIRMWARE_DOCS =
+  "https://github.com/ValantisChatzimagkas/brew-room-monitor/blob/main/firmware/README.md#2-send-readings";
+
 /** The room picker's value for a room typed on the form. */
 export const NEW_ROOM = "new";
 

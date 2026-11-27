@@ -8,9 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
-export const FIRMWARE_DOCS =
-  "https://github.com/ValantisChatzimagkas/brew-room-monitor/blob/main/firmware/README.md#2-send-readings";
-
 const next = (key: number) => key + 1;
 
 /**

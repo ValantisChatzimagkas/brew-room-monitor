@@ -5,6 +5,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { ReadingTime } from "@/components/reading-time";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { WaitingForReading } from "@/components/waiting-for-reading";
 import { getApi, type Device, type Reading } from "@/lib/api/client";
 import { formatValue, METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
 import { groupByRoom } from "@/lib/rooms";
@@ -105,7 +106,9 @@ function DeviceCard({ device, latest, now }: { device: Device; latest: Reading[]
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {latest.length === 0 ? (
+          {status === "waiting" ? (
+            <WaitingForReading />
+          ) : latest.length === 0 ? (
             <p className="text-sm text-muted-foreground">No readings yet</p>
           ) : (
             <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-sm">
