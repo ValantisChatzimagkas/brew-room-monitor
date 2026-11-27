@@ -17,6 +17,7 @@ import { YeastStatusBadge } from "@/components/yeast-status";
 import { type BatchDetail, findDevice, getApi } from "@/lib/api/client";
 import {
   blockingBatch,
+  breakGaps,
   DEFAULT_RANGE,
   parseId,
   parseRange,
@@ -130,7 +131,7 @@ async function DeviceDetail({
               </CardHeader>
               <CardContent>
                 <PartialNotice count={rows.length} where="in this range" />
-                <MetricChart metric={metric} points={toPoints(rows)} from={since.getTime()} to={now.getTime()} />
+                <MetricChart metric={metric} points={breakGaps(toPoints(rows))} from={since.getTime()} to={now.getTime()} />
               </CardContent>
             </Card>
           ))}
