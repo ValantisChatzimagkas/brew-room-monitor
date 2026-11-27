@@ -1,6 +1,6 @@
 import type { BatchDetail, TemperatureNote, YeastFit } from "@/lib/api/client";
 import { formatValue } from "./metrics";
-import { formatDuration } from "./time";
+import { formatDuration, isStale } from "./time";
 
 type YeastSplitItem = { label: "below" | "inside" | "above"; seconds: number; flagged: boolean };
 
@@ -29,6 +29,35 @@ export function yeastPosition(value: number, range: YeastRange): "below" | "insi
   if (value < range.min) return "below";
   if (value > range.max) return "above";
   return "inside";
+}
+
+export type YeastStatus = "in_range" | "too_warm" | "too_cold" | "no_recent_data";
+
+export const YEAST_STATUS_LABEL: Record<YeastStatus, string> = {
+  in_range: "In range",
+  too_warm: "Too warm",
+  too_cold: "Too cold",
+  no_recent_data: "No recent data",
+};
+
+const STATUS_BY_POSITION = { below: "too_cold", inside: "in_range", above: "too_warm" } as const;
+
+/**
+ * Where a running batch's newest temperature reading sits against its yeast range; `null` for an ended batch or
+ * one without a range. Bounds and staleness reuse `yeastPosition` and `isStale`, so the status agrees with the
+ * batch's split and the Dashboard. A missing or stale reading wins over its position.
+ */
+export function yeastStatus(
+  batch: Pick<BatchDetail, "ended_at" | "yeast_min_temperature_c" | "yeast_max_temperature_c" | "metrics">,
+  now: Date,
+): YeastStatus | null {
+  if (batch.ended_at !== null) return null;
+  const range = yeastRange(batch);
+  if (range === null) return null;
+  const temperature = batch.metrics.find((m) => m.metric === "temperature_c");
+  if (temperature === undefined) return "no_recent_data";
+  if (isStale([{ recorded_at: temperature.latest_recorded_at }], now)) return "no_recent_data";
+  return STATUS_BY_POSITION[yeastPosition(temperature.latest_value, range)];
 }
 
 /**
