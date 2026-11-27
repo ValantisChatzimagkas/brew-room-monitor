@@ -13,6 +13,7 @@ import type { components, paths } from "./schema";
 export type Device = components["schemas"]["DevicePublic"];
 export type Reading = components["schemas"]["ReadingPublic"];
 export type Metric = components["schemas"]["Metric"];
+export type Batch = components["schemas"]["BatchPublic"];
 export type BatchCreate = components["schemas"]["BatchCreate"];
 export type BatchDetail = components["schemas"]["BatchDetail"];
 export type YeastFit = components["schemas"]["YeastFit"];

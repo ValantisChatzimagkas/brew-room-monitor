@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 
-import { revokeDevice } from "@/app/devices/[id]/actions";
+import { revokeDevice } from "@/app/devices/[id]/settings/actions";
 import { Button } from "@/components/ui/button";
 
 /** "Revoke" button that opens an inline confirmation; nothing is sent until it is confirmed. */

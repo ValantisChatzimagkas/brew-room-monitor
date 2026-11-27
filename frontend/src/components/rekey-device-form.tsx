@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 
-import { rekeyDevice } from "@/app/devices/[id]/actions";
+import { rekeyDevice } from "@/app/devices/[id]/settings/actions";
 import { DeviceToken, useResetOnHide } from "@/components/device-token";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { FIRMWARE_DOCS } from "@/lib/devices";

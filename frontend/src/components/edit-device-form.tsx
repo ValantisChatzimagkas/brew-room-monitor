@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { type FormEvent, startTransition, useActionState, useState } from "react";
 
-import { updateDevice } from "@/app/devices/[id]/edit/actions";
+import { updateDevice } from "@/app/devices/[id]/settings/actions";
 import { type Room, RoomField } from "@/components/room-field";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
