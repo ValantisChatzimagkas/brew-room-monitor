@@ -41,6 +41,22 @@ export function parseNewDevice(input: unknown): { device: NewDevice } | { errors
   return { device: { name, kind: "in_vessel" } };
 }
 
+export const EDIT_DEVICE_FIELDS = ["name", "room", "newRoom"] as const;
+/** The edit form's input: like `NewDeviceInput`, without `kind`, which can't change. */
+export type EditDeviceInput = Record<(typeof EDIT_DEVICE_FIELDS)[number], string>;
+
+/**
+ * The device's new name and room, or why each field can't save, by the rules of `parseNewDevice`. `kind` is
+ * the stored device's: one sent with the input is never read, so it can't drop an ambient device's room.
+ */
+export function parseDeviceEdit(
+  input: unknown,
+  kind: "ambient" | "in_vessel",
+): { device: NewDevice } | { errors: NewDeviceErrors } {
+  if (!hasStringFields(input, EDIT_DEVICE_FIELDS)) return { errors: { form: "Reload the page and try again." } };
+  return parseNewDevice({ name: input.name, kind, room: input.room, newRoom: input.newRoom });
+}
+
 /**
  * The room with this name, ignoring case and surrounding spaces, like the backend's unique name check
  * (strip + Postgres `lower()`); a character the two fold differently is simply not found.
