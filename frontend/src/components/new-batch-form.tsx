@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { type FormEvent, startTransition, useActionState, useState, useSyncExternalStore } from "react";
 
+import { editBatch } from "@/app/batches/[id]/edit/actions";
 import { startBatch } from "@/app/devices/[id]/batches/new/actions";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -11,8 +12,22 @@ import { localInputToUtc, toLocalInput } from "@/lib/time";
 
 const subscribe = () => () => {};
 
-/** Form for a new batch on a device; its start time defaults to now in the browser's local time. */
-export function NewBatchForm({ deviceId }: { deviceId: number }) {
+/** A stored batch's editable fields; `startedAt` is UTC ISO, the others are input values. */
+export type EditableBatch = {
+  id: number;
+  name: string;
+  startedAt: string;
+  yeastName: string;
+  yeastMin: string;
+  yeastMax: string;
+};
+type Props = { deviceId: number } | { batch: EditableBatch };
+
+/**
+ * Form for a new batch on a device, its start time defaulting to now, or, given `batch`, for editing that
+ * batch. Times are in the browser's local time.
+ */
+export function NewBatchForm(props: Props) {
   // The server's time zone isn't the user's, so the fields (and "now") render only after hydration.
   const hydrated = useSyncExternalStore(
     subscribe,
@@ -20,20 +35,19 @@ export function NewBatchForm({ deviceId }: { deviceId: number }) {
     () => false,
   );
   if (!hydrated) return <p className="text-muted-foreground">Loading form…</p>;
-  return <HydratedForm deviceId={deviceId} />;
+  return <HydratedForm {...props} />;
 }
 
-function HydratedForm({ deviceId }: { deviceId: number }) {
-  const [name, setName] = useState("");
-  const [start, setStart] = useState(() => toLocalInput(new Date()));
-  const [yeastName, setYeastName] = useState("");
-  const [yeastMin, setYeastMin] = useState("");
-  const [yeastMax, setYeastMax] = useState("");
+function HydratedForm(props: Props) {
+  const batch = "batch" in props ? props.batch : null;
+  const [name, setName] = useState(batch?.name ?? "");
+  const [start, setStart] = useState(() => toLocalInput(batch ? new Date(batch.startedAt) : new Date()));
+  const [yeastName, setYeastName] = useState(batch?.yeastName ?? "");
+  const [yeastMin, setYeastMin] = useState(batch?.yeastMin ?? "");
+  const [yeastMax, setYeastMax] = useState(batch?.yeastMax ?? "");
   const [startError, setStartError] = useState<string | null>(null);
-  const [state, formAction, pending] = useActionState(startBatch.bind(null, deviceId), {
-    errors: {},
-    conflict: null,
-  });
+  const action = "batch" in props ? editBatch.bind(null, props.batch.id) : startBatch.bind(null, props.deviceId);
+  const [state, formAction, pending] = useActionState(action, { errors: {}, conflict: null });
   const { errors, conflict } = state;
   const startReason = startError ?? errors.startedAt;
   const ended = conflict !== null && conflict.endedAt !== null ? conflict.endedAt : null;
@@ -75,7 +89,7 @@ function HydratedForm({ deviceId }: { deviceId: number }) {
         <FieldError>{startReason}</FieldError>
         {ended !== null && (
           <FieldError>
-            A new batch runs until you end it, so it must start after {conflictLink} ended (
+            {batch ? "It" : "A new batch runs until you end it, so it"} must start after {conflictLink} ended (
             {new Date(ended).toLocaleString()}).
           </FieldError>
         )}
@@ -123,9 +137,12 @@ function HydratedForm({ deviceId }: { deviceId: number }) {
       )}
       <div className="flex gap-2">
         <Button type="submit" disabled={pending}>
-          Start batch
+          {batch ? "Save" : "Start batch"}
         </Button>
-        <Link href={`/devices/${deviceId}`} className={buttonVariants({ variant: "outline" })}>
+        <Link
+          href={"batch" in props ? `/batches/${props.batch.id}` : `/devices/${props.deviceId}`}
+          className={buttonVariants({ variant: "outline" })}
+        >
           Cancel
         </Link>
       </div>

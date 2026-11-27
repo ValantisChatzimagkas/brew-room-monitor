@@ -104,11 +104,12 @@ async function BatchDetailView({
             {device?.name ?? `Device ${batch.device_id}`}
           </Link>
         </p>
-        {batch.ended_at === null && (
-          <div className="mt-4">
-            <EndBatchForm batchId={batch.id} />
-          </div>
-        )}
+        <div className="mt-4 flex flex-wrap items-start gap-2">
+          <Link href={`/batches/${batch.id}/edit`} className={buttonVariants({ variant: "outline" })}>
+            Edit
+          </Link>
+          {batch.ended_at === null && <EndBatchForm batchId={batch.id} />}
+        </div>
         <div className="mt-4">
           <BatchYeast batch={batch} />
           {range && <BatchNotes notes={batch.notes} range={range} ambient={device?.kind === "ambient"} />}

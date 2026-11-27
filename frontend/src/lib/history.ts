@@ -150,13 +150,15 @@ function parseBound(raw: string): number | null | "invalid" {
 }
 
 /**
- * The new batch's body, or why each field can't start it, in the user's words. Mirrors the backend's
- * `_check_window` (future start) and `_check_yeast_range` (one bound only, min above max; equal allowed) and
- * `BatchBase`'s length caps; the backend stays the authority. Rejects anything that isn't the form's shape.
+ * The batch's body, or why each field can't save it, in the user's words. Mirrors the backend's
+ * `_check_window` (future start; with `endedAtIso`, a start after the end, equal allowed) and
+ * `_check_yeast_range` (one bound only, min above max; equal allowed) and `BatchBase`'s length caps; the
+ * backend stays the authority. Rejects anything that isn't the form's shape.
  */
 export function parseNewBatch(
   input: unknown,
   now: Date,
+  endedAtIso: string | null = null,
 ): { body: Omit<BatchCreate, "device_id" | "ended_at"> } | { errors: NewBatchErrors } {
   if (!hasStringFields(input, NEW_BATCH_FIELDS)) return { errors: { form: "Reload the page and try again." } };
   const errors: NewBatchErrors = {};
@@ -168,6 +170,9 @@ export function parseNewBatch(
   const start = parseZonedIso(input.startedAt);
   if (start === null) errors.startedAt = "Enter a valid start time.";
   else if (start > now.getTime()) errors.startedAt = "The start time is in the future.";
+  else if (endedAtIso !== null && start > Date.parse(endedAtIso)) {
+    errors.startedAt = "The start time is after the batch ended.";
+  }
 
   const yeastName = input.yeastName.trim();
   if (yeastName.length > NAME_MAX) errors.yeastName = "Keep the yeast name to 64 characters.";
@@ -196,6 +201,15 @@ export function parseNewBatch(
 }
 
 /**
+ * Whether a submitted start is the stored one as the form showed it: the `datetime-local` input drops
+ * seconds, so an untouched field submits the stored start floored to the minute.
+ */
+export function isUnchangedStart(submittedIso: string, storedIso: string): boolean {
+  const stored = Date.parse(storedIso);
+  return Date.parse(submittedIso) === stored - (stored % MINUTE_MS);
+}
+
+/**
  * The batch a new one on this device must start after: the running batch, else the ended batch that ends
  * last; `undefined` if none. A voided (zero-length) batch overlaps nothing, so it neither runs nor blocks a
  * start, and may sort anywhere; the first other row is the one, since non-empty batches can't overlap.
@@ -204,6 +218,21 @@ export function blockingBatch<B extends { started_at: string; ended_at: string |
   newestFirst: readonly B[],
 ): B | undefined {
   return newestFirst.find((b) => b.ended_at === null || Date.parse(b.ended_at) !== Date.parse(b.started_at));
+}
+
+/**
+ * The batch an edited start of `batch` overlaps: only the start moves and a running batch is always its
+ * device's latest, so it is the newest non-voided batch that started before this one. A voided `batch` can sit
+ * inside that batch's window; then it names none, since "start after it ended" couldn't be met.
+ */
+export function previousBatch<B extends { id: number; started_at: string; ended_at: string | null }>(
+  newestFirst: readonly B[],
+  batch: { id: number; started_at: string },
+): B | undefined {
+  const start = Date.parse(batch.started_at);
+  const previous = blockingBatch(newestFirst.filter((b) => b.id !== batch.id && Date.parse(b.started_at) < start));
+  if (previous === undefined || previous.ended_at === null || Date.parse(previous.ended_at) > start) return undefined;
+  return previous;
 }
 
 /**

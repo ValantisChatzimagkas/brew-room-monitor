@@ -14,10 +14,12 @@ import {
   GRANULARITIES,
   isIsolated,
   isPartial,
+  isUnchangedStart,
   parseId,
   parseNewBatch,
   parseRange,
   pickBucket,
+  previousBatch,
   RANGES,
   rangeSince,
   toBucketPoints,
@@ -258,6 +260,36 @@ describe("parseNewBatch", () => {
   ])("%s -> reload", (_, input) => {
     expect(parseNewBatch(input, now)).toEqual(reload);
   });
+
+  it.each([
+    ["before the end", "2026-01-19T08:00:00.000Z", body()],
+    ["at the end (voids the batch)", "2026-01-19T09:00:00.000Z", body({ started_at: "2026-01-19T09:00:00.000Z" })],
+    [
+      "after the end",
+      "2026-01-19T09:00:00.001Z",
+      { errors: { startedAt: "The start time is after the batch ended." } },
+    ],
+    [
+      "in the future and after the end",
+      "2026-01-20T00:00:00.001Z",
+      { errors: { startedAt: "The start time is in the future." } },
+    ],
+  ])("ended batch, start %s", (_, startedAt, expected) => {
+    expect(parseNewBatch({ ...base, startedAt }, now, "2026-01-19T09:00:00Z")).toEqual(expected);
+  });
+});
+
+describe("isUnchangedStart", () => {
+  const stored = "2026-01-19T08:00:30.500Z";
+  it.each([
+    ["the stored start floored to the minute", "2026-01-19T08:00:00.000Z", stored, true],
+    ["the same instant with an offset", "2026-01-19T10:00:00+02:00", stored, true],
+    ["a minute later", "2026-01-19T08:01:00.000Z", stored, false],
+    ["a minute earlier", "2026-01-19T07:59:00.000Z", stored, false],
+    ["a stored start on the minute", "2026-01-19T08:00:00.000Z", "2026-01-19T08:00:00Z", true],
+  ])("%s", (_, submitted, storedIso, expected) => {
+    expect(isUnchangedStart(submitted, storedIso)).toBe(expected);
+  });
 });
 
 describe("blockingBatch", () => {
@@ -275,6 +307,25 @@ describe("blockingBatch", () => {
     ["two ended", [ended, olderEnded], ended],
   ])("%s", (_, newestFirst, expected) => {
     expect(blockingBatch(newestFirst)).toBe(expected);
+  });
+});
+
+describe("previousBatch", () => {
+  const batch = (id: number, started_at: string, ended_at: string | null) => ({ id, started_at, ended_at });
+  const later = batch(1, "2026-01-15T00:00:00Z", null);
+  const edited = batch(2, "2026-01-10T00:00:00Z", "2026-01-12T00:00:00Z");
+  const voided = batch(3, "2026-01-09T00:00:00Z", "2026-01-09T00:00:00Z");
+  const ended = batch(4, "2026-01-05T00:00:00Z", "2026-01-08T00:00:00Z");
+  const voidedInside = batch(5, "2026-01-11T00:00:00Z", "2026-01-11T00:00:00Z");
+  it.each([
+    ["edited running, one ended before", [{ ...edited, ended_at: null }, ended], edited, ended],
+    ["voided before it is skipped", [edited, voided, ended], edited, ended],
+    ["later batches ignored", [later, edited, ended], edited, ended],
+    ["only the edited batch", [edited], edited, undefined],
+    ["edited is the oldest", [later, edited], edited, undefined],
+    ["edited is voided inside another's window", [voidedInside, edited, ended], voidedInside, undefined],
+  ])("%s", (_, newestFirst, editing, expected) => {
+    expect(previousBatch(newestFirst, editing)).toBe(expected);
   });
 });
 
