@@ -138,8 +138,6 @@ async function DeviceBatches({ deviceId, now, revoked }: { deviceId: number; now
     params: { query: { device_id: deviceId, limit: BATCHES_LIMIT } },
   });
   if (list.error) throw new Error("Failed to load data from the API");
-  // Only the newest rows: more than 9 voided batches newer than a running one would show the link wrongly,
-  // and the new-batch page then says the batch is running.
   const canStart = !revoked && blockingBatch(list.data)?.ended_at !== null;
 
   const batches = await Promise.all(

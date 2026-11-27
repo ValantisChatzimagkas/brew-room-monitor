@@ -55,9 +55,14 @@ def test_create_and_list(
     for name, day in (("stout", JAN_1), ("lager", JAN_10)):
         other_id, _ = make_device(f"vessel-{name}")
         assert _create(client, user_headers, other_id, day, name=name) == 201
+    # Ended, but newer than the two old running batches: it must not push them past `limit`.
+    porter_id, _ = make_device("vessel-porter")
+    assert _create(client, user_headers, porter_id, JAN_15, JAN_20, name="porter") == 201
 
     listed = client.get("/api/v1/batches", headers=user_headers).json()
-    assert [b["name"] for b in listed] == ["ipa", "lager", "stout"]
+    assert [b["name"] for b in listed] == ["ipa", "lager", "stout", "porter"]
+    three = client.get("/api/v1/batches", params={"limit": 3}, headers=user_headers).json()
+    assert [b["name"] for b in three] == ["ipa", "lager", "stout"]
     one = client.get("/api/v1/batches", params={"limit": 1}, headers=user_headers).json()
     assert [b["name"] for b in one] == ["ipa"]
 

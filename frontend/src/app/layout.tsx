@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
 
+import { SiteNav, SiteNavLinks } from "@/components/site-nav";
 import { buttonVariants } from "@/components/ui/button";
 
 const geistSans = Geist({
@@ -26,7 +28,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <header className="mx-auto flex w-full max-w-4xl justify-end px-6 pt-4">
+        <header className="mx-auto flex w-full max-w-4xl items-center justify-between px-6 pt-4">
+          <Suspense fallback={<SiteNavLinks current={null} />}>
+            <SiteNav />
+          </Suspense>
           {/* A plain <a>, not <Link>: the SDK's logout route must not be prefetched. */}
           <a href="/auth/logout" className={buttonVariants({ variant: "outline", size: "sm" })}>
             Sign out
