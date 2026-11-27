@@ -12,6 +12,7 @@ import { RekeyDeviceForm } from "@/components/rekey-device-form";
 import { RevokeDeviceForm } from "@/components/revoke-device-form";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { YeastStatusBadge } from "@/components/yeast-status";
 import { type BatchDetail, findDevice, getApi } from "@/lib/api/client";
 import {
   blockingBatch,
@@ -25,6 +26,7 @@ import {
 } from "@/lib/history";
 import { METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
 import { formatAge } from "@/lib/time";
+import { AMBIENT_CAVEAT, yeastStatus } from "@/lib/yeast";
 
 const BATCHES_LIMIT = 10;
 
@@ -125,14 +127,29 @@ async function DeviceDetail({
       <section className="mt-8">
         <h2 className="mb-3 text-lg font-medium">Batches</h2>
         <Suspense fallback={<p className="text-muted-foreground">Loading batches…</p>}>
-          <DeviceBatches deviceId={id} now={now} revoked={device.revoked_at !== null} />
+          <DeviceBatches
+            deviceId={id}
+            now={now}
+            revoked={device.revoked_at !== null}
+            ambient={device.kind === "ambient"}
+          />
         </Suspense>
       </section>
     </>
   );
 }
 
-async function DeviceBatches({ deviceId, now, revoked }: { deviceId: number; now: Date; revoked: boolean }) {
+async function DeviceBatches({
+  deviceId,
+  now,
+  revoked,
+  ambient,
+}: {
+  deviceId: number;
+  now: Date;
+  revoked: boolean;
+  ambient: boolean;
+}) {
   const api = await getApi();
   const list = await api.GET("/api/v1/batches", {
     params: { query: { device_id: deviceId, limit: BATCHES_LIMIT } },
@@ -163,14 +180,15 @@ async function DeviceBatches({ deviceId, now, revoked }: { deviceId: number; now
       )}
       <div className="grid gap-6">
         {batches.map((batch) => (
-          <BatchCard key={batch.id} batch={batch} now={now} />
+          <BatchCard key={batch.id} batch={batch} now={now} ambient={ambient} />
         ))}
       </div>
     </>
   );
 }
 
-function BatchCard({ batch, now }: { batch: BatchDetail; now: Date }) {
+function BatchCard({ batch, now, ambient }: { batch: BatchDetail; now: Date; ambient: boolean }) {
+  const status = yeastStatus(batch, now);
   return (
     <Card>
       <CardHeader>
@@ -180,7 +198,17 @@ function BatchCard({ batch, now }: { batch: BatchDetail; now: Date }) {
               {batch.name}
             </Link>
           </h3>
-          {batch.ended_at === null && <span className="text-sm font-normal text-primary">Running</span>}
+          {batch.ended_at === null && (
+            <span className="text-sm font-normal">
+              <span className="text-primary">Running</span>
+              {status !== null && (
+                <>
+                  {" · "}
+                  <YeastStatusBadge status={status} ambient={ambient} />
+                </>
+              )}
+            </span>
+          )}
         </CardTitle>
         <CardDescription>
           Started <ReadingTime iso={batch.started_at}>{formatAge(new Date(batch.started_at), now)}</ReadingTime>
@@ -195,6 +223,7 @@ function BatchCard({ batch, now }: { batch: BatchDetail; now: Date }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {status !== null && ambient && <p className="mb-2 text-sm text-muted-foreground">{AMBIENT_CAVEAT}</p>}
         <BatchYeast batch={batch} />
         {batch.metrics.length === 0 ? (
           <p className="text-sm text-muted-foreground">No readings in this batch&apos;s window.</p>

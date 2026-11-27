@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { BatchDetail } from "./api/client";
 import { formatValue } from "./metrics";
-import { formatDuration } from "./time";
-import { noteText, yeastPosition, yeastSplit } from "./yeast";
+import { formatDuration, STALE_AFTER_MS } from "./time";
+import { noteText, yeastPosition, yeastSplit, yeastStatus } from "./yeast";
 
 describe("yeastSplit", () => {
   it.each([
@@ -32,6 +33,38 @@ describe("yeastPosition", () => {
     [{ min: 20, max: 20 }, 20.1, "above"],
   ])("%j, %d -> %s", (range, value, expected) => {
     expect(yeastPosition(value, range)).toBe(expected);
+  });
+});
+
+describe("yeastStatus", () => {
+  const now = new Date("2026-01-01T12:00:00Z");
+  const reading = (metric: BatchDetail["metrics"][number]["metric"], value: number, ageMs: number) => ({
+    metric,
+    count: 1,
+    min_value: value,
+    max_value: value,
+    avg_value: value,
+    latest_value: value,
+    latest_recorded_at: new Date(now.getTime() - ageMs).toISOString(),
+  });
+  const temp = (value: number, ageMs = 60_000) => [reading("temperature_c", value, ageMs)];
+  const running = { ended_at: null, yeast_min_temperature_c: 18, yeast_max_temperature_c: 22 };
+
+  it.each([
+    ["in range", running, temp(20), "in_range"],
+    ["exactly at min", running, temp(18), "in_range"],
+    ["exactly at max", running, temp(22), "in_range"],
+    ["below min", running, temp(17.9), "too_cold"],
+    ["above max", running, temp(22.1), "too_warm"],
+    ["exactly at the stale threshold", running, temp(20, STALE_AFTER_MS), "in_range"],
+    ["just past the stale threshold", running, temp(20, STALE_AFTER_MS + 1000), "no_recent_data"],
+    ["stale and out of range", running, temp(30, STALE_AFTER_MS + 1000), "no_recent_data"],
+    ["no temperature metric", running, [reading("humidity_pct", 60, 60_000)], "no_recent_data"],
+    ["no readings", running, [], "no_recent_data"],
+    ["no range", { ...running, yeast_min_temperature_c: null, yeast_max_temperature_c: null }, temp(20), null],
+    ["ended batch", { ...running, ended_at: "2026-01-01T11:00:00Z" }, temp(20), null],
+  ] as const)("%s", (_, batch, metrics, expected) => {
+    expect(yeastStatus({ ...batch, metrics: [...metrics] }, now)).toBe(expected);
   });
 });
 
