@@ -1,6 +1,6 @@
 import { isStale } from "./time";
 
-export type DeviceStatus = "revoked" | "waiting" | "stale" | "ok";
+type DeviceStatus = "revoked" | "waiting" | "stale" | "ok";
 
 /**
  * Revoked wins over waiting and stale: a revoked device is silent by design (and can't send its first
