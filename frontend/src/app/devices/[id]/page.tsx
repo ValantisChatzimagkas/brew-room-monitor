@@ -5,9 +5,9 @@ import { Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
 import { BatchTable } from "@/components/batch-table";
+import { LocalDateTime } from "@/components/local-date-time";
 import { MetricChart } from "@/components/metric-chart";
 import { PartialNotice } from "@/components/partial-notice";
-import { ReadingTime } from "@/components/reading-time";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WaitingForReading } from "@/components/waiting-for-reading";
@@ -23,9 +23,9 @@ import {
   READINGS_LIMIT,
   toPoints,
 } from "@/lib/history";
+import { DEVICE_KIND_LABEL } from "@/lib/devices";
 import { METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
-import { deviceStatus } from "@/lib/status";
-import { formatAge } from "@/lib/time";
+import { deviceStatus, noRecentDataText } from "@/lib/status";
 
 const BATCHES_LIMIT = 10;
 
@@ -75,24 +75,28 @@ async function DeviceDetail({
   const canStart = device.revoked_at === null && blockingBatch(batchList.data)?.ended_at !== null;
   const withRows = results.filter(({ rows }) => rows.length > 0);
 
-  // An empty range can still hide older readings: only a device with none at all is waiting for its first.
-  let waiting = false;
+  // Newest reading per metric (`/readings` is newest first). An empty range can still hide older readings:
+  // only a device with none at all is waiting for its first.
+  let latest = withRows.map(({ rows }) => rows[0]);
   if (withRows.length === 0) {
     const newest = await api.GET("/api/v1/readings", { params: { query: { device_id: id, limit: 1 } } });
     if (newest.error) throw new Error("Failed to load data from the API");
-    waiting = deviceStatus(device, newest.data, now) === "waiting";
+    latest = newest.data;
   }
+  const status = deviceStatus(device, latest, now);
+  const waiting = status === "waiting";
 
   return (
     <>
       <header className="mb-6">
         <h1 className="text-2xl font-semibold">{device.name}</h1>
         <p className="text-muted-foreground">
-          {device.kind} · {device.location?.name ?? "No room"}
+          {DEVICE_KIND_LABEL[device.kind]} · {device.location?.name ?? "No room"}
         </p>
+        {status === "stale" && <p className="text-stale">{noRecentDataText(latest, now)}</p>}
         {device.revoked_at !== null && (
-          <span className="text-destructive">
-            <ReadingTime iso={device.revoked_at}>Revoked {formatAge(new Date(device.revoked_at), now)}</ReadingTime>
+          <span className="text-muted-foreground">
+            Revoked <LocalDateTime iso={device.revoked_at} />
           </span>
         )}
         <div className="mt-4 flex flex-wrap gap-2">

@@ -3,14 +3,13 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { EditDeviceForm } from "@/components/edit-device-form";
-import { ReadingTime } from "@/components/reading-time";
+import { LocalDateTime } from "@/components/local-date-time";
 import { RekeyDeviceForm } from "@/components/rekey-device-form";
 import { RevokeDeviceForm } from "@/components/revoke-device-form";
 import type { Room } from "@/components/room-field";
 import { findDevice, getApi } from "@/lib/api/client";
 import { NEW_ROOM } from "@/lib/devices";
 import { parseId } from "@/lib/history";
-import { formatAge } from "@/lib/time";
 
 export default function DeviceSettingsPage({ params }: PageProps<"/devices/[id]/settings">) {
   return (
@@ -27,8 +26,7 @@ async function DeviceSettings({ params }: Pick<PageProps<"/devices/[id]/settings
   const id = parseId(rawId);
   if (id === null) notFound();
 
-  const api = await getApi(); // must come before new Date(): it opts the render out of prerendering
-  const now = new Date();
+  const api = await getApi();
   const device = await findDevice(id);
   if (!device) notFound();
   let rooms: Room[] = [];
@@ -50,8 +48,8 @@ async function DeviceSettings({ params }: Pick<PageProps<"/devices/[id]/settings
       <header className="mb-6">
         <h1 className="text-2xl font-semibold">Settings</h1>
         {device.revoked_at !== null && (
-          <span className="text-destructive">
-            <ReadingTime iso={device.revoked_at}>Revoked {formatAge(new Date(device.revoked_at), now)}</ReadingTime>
+          <span className="text-muted-foreground">
+            Revoked <LocalDateTime iso={device.revoked_at} />
           </span>
         )}
       </header>

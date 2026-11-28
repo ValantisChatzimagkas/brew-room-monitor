@@ -7,8 +7,8 @@ import { BatchNotes } from "@/components/batch-notes";
 import { BatchSummaryTable } from "@/components/batch-summary-table";
 import { BatchYeast } from "@/components/batch-yeast";
 import { EndBatchForm } from "@/components/end-batch-form";
+import { LocalDateTime } from "@/components/local-date-time";
 import { MetricChart } from "@/components/metric-chart";
-import { ReadingTime } from "@/components/reading-time";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { findDevice, getApi } from "@/lib/api/client";
@@ -28,7 +28,6 @@ import {
   toBucketPoints,
 } from "@/lib/history";
 import { inMetricOrder, METRIC_INFO } from "@/lib/metrics";
-import { formatAge } from "@/lib/time";
 import { yeastRange } from "@/lib/yeast";
 
 export default function BatchPage({ params, searchParams }: PageProps<"/batches/[id]">) {
@@ -90,13 +89,13 @@ async function BatchDetailView({
       <header className="mb-6">
         <h1 className="text-2xl font-semibold">{batch.name}</h1>
         <p className="text-muted-foreground">
-          Started <ReadingTime iso={batch.started_at}>{formatAge(new Date(batch.started_at), now)}</ReadingTime>
+          Started <LocalDateTime iso={batch.started_at} />
           {batch.ended_at === null ? (
-            " · running"
+            " · Running"
           ) : (
             <>
-              {" · ended "}
-              <ReadingTime iso={batch.ended_at}>{formatAge(new Date(batch.ended_at), now)}</ReadingTime>
+              {" · Ended "}
+              <LocalDateTime iso={batch.ended_at} />
             </>
           )}
           {" · "}

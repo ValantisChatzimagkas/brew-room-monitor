@@ -1,16 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, startTransition, useActionState, useState, useSyncExternalStore } from "react";
+import { type FormEvent, startTransition, useActionState, useState } from "react";
 
 import { editBatch } from "@/app/batches/[id]/edit/actions";
 import { startBatch } from "@/app/devices/[id]/batches/new/actions";
+import { useHydrated } from "@/components/local-date-time";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { localInputToUtc, toLocalInput } from "@/lib/time";
-
-const subscribe = () => () => {};
 
 /** A stored batch's editable fields; `startedAt` is UTC ISO, the others are input values. */
 export type EditableBatch = {
@@ -29,11 +28,7 @@ type Props = { deviceId: number } | { batch: EditableBatch };
  */
 export function NewBatchForm(props: Props) {
   // The server's time zone isn't the user's, so the fields (and "now") render only after hydration.
-  const hydrated = useSyncExternalStore(
-    subscribe,
-    () => true,
-    () => false,
-  );
+  const hydrated = useHydrated();
   if (!hydrated) return <p className="text-muted-foreground">Loading form…</p>;
   return <HydratedForm {...props} />;
 }

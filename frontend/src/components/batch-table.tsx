@@ -1,11 +1,10 @@
 import Link from "next/link";
 
-import { ReadingTime } from "@/components/reading-time";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { YeastStatusBadge } from "@/components/yeast-status";
-import type { Batch, Device } from "@/lib/api/client";
+import type { Batch, BatchYeastStatus, Device } from "@/lib/api/client";
 import { formatAge } from "@/lib/time";
-import { AMBIENT_CAVEAT, type YeastStatus } from "@/lib/yeast";
+import { AMBIENT_CAVEAT } from "@/lib/yeast";
 
 /** One row per batch, each linking to its batch page; `statuses` from `yeastStatuses`. */
 export function BatchTable({
@@ -16,7 +15,7 @@ export function BatchTable({
   now,
 }: {
   batches: readonly Batch[];
-  statuses: ReadonlyMap<number, YeastStatus>;
+  statuses: ReadonlyMap<number, BatchYeastStatus>;
   devices: ReadonlyMap<number, Pick<Device, "name" | "kind">>;
   showDevice: boolean;
   now: Date;
@@ -33,7 +32,7 @@ export function BatchTable({
             {showDevice && <TableHead>Device</TableHead>}
             <TableHead>Started</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Yeast range</TableHead>
+            <TableHead>Yeast</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -48,20 +47,24 @@ export function BatchTable({
                 </TableCell>
                 {showDevice && <TableCell>{devices.get(b.device_id)?.name ?? `Device ${b.device_id}`}</TableCell>}
                 <TableCell>
-                  <ReadingTime iso={b.started_at}>{formatAge(new Date(b.started_at), now)}</ReadingTime>
+                  {formatAge(new Date(b.started_at), now)}
                 </TableCell>
                 <TableCell>
                   {b.ended_at === null ? (
-                    <span className="text-primary">Running</span>
+                    "Running"
                   ) : (
-                    <>
-                      {"Ended "}
-                      <ReadingTime iso={b.ended_at}>{formatAge(new Date(b.ended_at), now)}</ReadingTime>
-                    </>
+                    `Ended ${formatAge(new Date(b.ended_at), now)}`
                   )}
                 </TableCell>
                 <TableCell>
-                  {status !== undefined && <YeastStatusBadge status={status} ambient={isAmbient(b.device_id)} />}
+                  {status !== undefined && (
+                    <YeastStatusBadge
+                      status={status.status}
+                      lastReadingAt={status.lastReadingAt}
+                      ambient={isAmbient(b.device_id)}
+                      now={now}
+                    />
+                  )}
                 </TableCell>
               </TableRow>
             );

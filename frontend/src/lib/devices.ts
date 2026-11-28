@@ -1,7 +1,11 @@
+import type { Device } from "@/lib/api/client";
+
 import { hasStringFields, NAME_MAX, parseId } from "./history";
 
 export const FIRMWARE_DOCS =
   "https://github.com/ValantisChatzimagkas/brew-room-monitor/blob/main/firmware/README.md#2-send-readings";
+
+export const DEVICE_KIND_LABEL: Record<Device["kind"], string> = { ambient: "Ambient", in_vessel: "In vessel" };
 
 /** The room picker's value for a room typed on the form. */
 export const NEW_ROOM = "new";

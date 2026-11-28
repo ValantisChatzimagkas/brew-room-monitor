@@ -10,7 +10,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { FIRMWARE_DOCS, NEW_ROOM } from "@/lib/devices";
+import { DEVICE_KIND_LABEL, FIRMWARE_DOCS, NEW_ROOM } from "@/lib/devices";
 
 /**
  * Form that registers a device and then shows its token once. The token lives only in the inner form's
@@ -83,8 +83,8 @@ function OpenForm({ rooms, onReset }: { rooms: Room[]; onReset: () => void }) {
           onChange={(e) => setKind(e.target.value)}
           aria-invalid={errors.kind !== undefined || undefined}
         >
-          <NativeSelectOption value="ambient">Ambient (measures a room)</NativeSelectOption>
-          <NativeSelectOption value="in_vessel">In vessel (floats in the fermenter)</NativeSelectOption>
+          <NativeSelectOption value="ambient">{DEVICE_KIND_LABEL.ambient} (measures a room)</NativeSelectOption>
+          <NativeSelectOption value="in_vessel">{DEVICE_KIND_LABEL.in_vessel} (floats in the fermenter)</NativeSelectOption>
         </NativeSelect>
         <FieldError>{errors.kind}</FieldError>
       </Field>
