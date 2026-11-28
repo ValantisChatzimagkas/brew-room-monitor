@@ -24,11 +24,15 @@ export function formatDuration(seconds: number): string {
   return `${oneDecimal(ms / DAY_MS)} d`;
 }
 
+/** The newest `recorded_at` of a non-empty list, in epoch ms. */
+export function newestRecordedAt(latest: readonly { recorded_at: string }[]): number {
+  return Math.max(...latest.map((r) => new Date(r.recorded_at).getTime()));
+}
+
 /** A device is stale when even its newest reading is older than the threshold; no readings is not stale. */
 export function isStale(latest: readonly { recorded_at: string }[], now: Date): boolean {
   if (latest.length === 0) return false;
-  const newest = Math.max(...latest.map((r) => new Date(r.recorded_at).getTime()));
-  return now.getTime() - newest > STALE_AFTER_MS;
+  return now.getTime() - newestRecordedAt(latest) > STALE_AFTER_MS;
 }
 
 /** Chart ticks show the time of day; above a day they add the date, since times then repeat across days. */

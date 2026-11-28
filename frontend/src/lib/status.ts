@@ -1,4 +1,4 @@
-import { formatAge, isStale } from "./time";
+import { formatAge, isStale, newestRecordedAt } from "./time";
 
 /** A device or batch whose newest reading is stale, or that has none: the same words everywhere. */
 export const NO_RECENT_DATA = "No recent data";
@@ -22,6 +22,5 @@ export function deviceStatus(
 /** `NO_RECENT_DATA` and since when, from the newest of `latest` (as `isStale` decides); empty says only the words. */
 export function noRecentDataText(latest: readonly { recorded_at: string }[], now: Date): string {
   if (latest.length === 0) return NO_RECENT_DATA;
-  const newest = Math.max(...latest.map((r) => new Date(r.recorded_at).getTime()));
-  return `${NO_RECENT_DATA} · last reading ${formatAge(new Date(newest), now)}`;
+  return `${NO_RECENT_DATA} · last reading ${formatAge(new Date(newestRecordedAt(latest)), now)}`;
 }
