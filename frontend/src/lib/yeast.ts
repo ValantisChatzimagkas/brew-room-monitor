@@ -24,6 +24,10 @@ export function yeastRange(
   return min !== null && max !== null ? { min, max } : null;
 }
 
+export function formatYeastRange(range: YeastRange): string {
+  return `${formatValue("temperature_c", range.min)} – ${formatValue("temperature_c", range.max)}`;
+}
+
 /** Bounds count as inside, as in the backend's `yeast_fit`. */
 export function yeastPosition(value: number, range: YeastRange): "below" | "inside" | "above" {
   if (value < range.min) return "below";

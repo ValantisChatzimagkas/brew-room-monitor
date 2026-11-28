@@ -13,7 +13,11 @@ export function EndBatchForm({ batchId }: { batchId: number }) {
   const [initial, setInitial] = useState<string | null>(null);
   if (initial === null) {
     // "Now" is read on click, not at render, so server and browser HTML agree.
-    return <Button onClick={() => setInitial(toLocalInput(new Date()))}>End batch</Button>;
+    return (
+      <Button variant="outline" size="sm" onClick={() => setInitial(toLocalInput(new Date()))}>
+        End batch
+      </Button>
+    );
   }
   return <OpenForm batchId={batchId} initial={initial} onClose={() => setInitial(null)} />;
 }
@@ -46,7 +50,7 @@ function OpenForm({ batchId, initial, onClose }: { batchId: number; initial: str
         <FieldError>{error}</FieldError>
       </Field>
       <div className="flex gap-2">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" variant="destructive" disabled={pending}>
           End batch
         </Button>
         <Button type="button" variant="outline" onClick={onClose}>
