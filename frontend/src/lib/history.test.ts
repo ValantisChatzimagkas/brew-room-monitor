@@ -22,6 +22,7 @@ import {
   previousBatch,
   RANGES,
   rangeSince,
+  startableDevices,
   toBucketPoints,
   toPoints,
 } from "./history";
@@ -307,6 +308,30 @@ describe("blockingBatch", () => {
     ["two ended", [ended, olderEnded], ended],
   ])("%s", (_, newestFirst, expected) => {
     expect(blockingBatch(newestFirst)).toBe(expected);
+  });
+});
+
+describe("startableDevices", () => {
+  const device = (id: number, revoked_at: string | null = null) => ({ id, revoked_at });
+  const batch = (device_id: number, started_at: string, ended_at: string | null) => ({ device_id, started_at, ended_at });
+  const a = device(1);
+  const b = device(2);
+  const revoked = device(3, "2026-01-01T00:00:00Z");
+  const runningOn = (d: number) => batch(d, "2026-01-10T00:00:00Z", null);
+  const endedOn = (d: number) => batch(d, "2026-01-05T00:00:00Z", "2026-01-08T00:00:00Z");
+  const voidedOn = (d: number) => batch(d, "2026-01-12T00:00:00Z", "2026-01-12T00:00:00Z");
+  it.each([
+    ["no devices", [], [], []],
+    ["device with no batches", [a], [], [a]],
+    ["revoked device with no batches", [revoked], [], []],
+    ["device with a running batch", [a], [runningOn(1)], []],
+    ["device whose newest batch ended", [a], [endedOn(1)], [a]],
+    ["device with only a voided batch", [a], [voidedOn(1)], [a]],
+    ["A running, B ended", [a, b], [runningOn(1), endedOn(2)], [b]],
+    ["a running batch on B doesn't block A", [a, b], [runningOn(2)], [a]],
+    ["two startable devices keep their order", [b, a], [endedOn(1)], [b, a]],
+  ])("%s", (_, devices, newestFirst, expected) => {
+    expect(startableDevices(devices, newestFirst)).toEqual(expected);
   });
 });
 

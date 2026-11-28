@@ -220,6 +220,16 @@ export function blockingBatch<B extends { started_at: string; ended_at: string |
   return newestFirst.find((b) => b.ended_at === null || Date.parse(b.ended_at) !== Date.parse(b.started_at));
 }
 
+/** Devices that can start a batch, in `devices` order: not revoked, and no running batch (voided batches don't block). */
+export function startableDevices<D extends { id: number; revoked_at: string | null }>(
+  devices: readonly D[],
+  newestFirst: readonly { device_id: number; started_at: string; ended_at: string | null }[],
+): D[] {
+  return devices.filter(
+    (d) => d.revoked_at === null && blockingBatch(newestFirst.filter((b) => b.device_id === d.id))?.ended_at !== null,
+  );
+}
+
 /**
  * The batch an edited start of `batch` overlaps: only the start moves and a running batch is always its
  * device's latest, so it is the newest non-voided batch that started before this one. A voided `batch` can sit

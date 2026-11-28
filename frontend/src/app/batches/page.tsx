@@ -3,9 +3,11 @@ import { Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
 import { ReadingTime } from "@/components/reading-time";
+import { runningBatches, StartBatchLink } from "@/components/start-batch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { YeastStatusBadge } from "@/components/yeast-status";
 import { getApi, listDevices } from "@/lib/api/client";
+import { startableDevices } from "@/lib/history";
 import { formatAge } from "@/lib/time";
 import { AMBIENT_CAVEAT, yeastRange, type YeastStatus, yeastStatus } from "@/lib/yeast";
 
@@ -51,20 +53,22 @@ async function BatchList() {
   const isAmbient = (deviceId: number) => devicesById.get(deviceId)?.kind === "ambient";
   const anyAmbientStatus = list.data.some((b) => statuses.has(b.id) && isAmbient(b.device_id));
 
+  const startBatch = (
+    <StartBatchLink startable={startableDevices(devices, list.data)} running={runningBatches(devices, list.data)} />
+  );
+
   if (list.data.length === 0) {
     return (
-      <p className="text-muted-foreground">
-        No batches yet. Batches you start appear here, running ones first. Start one from a device on the{" "}
-        <Link href="/" className="underline">
-          Dashboard
-        </Link>
-        .
-      </p>
+      <div className="grid justify-items-start gap-4">
+        <p className="text-muted-foreground">No batches yet. Batches you start appear here, running ones first.</p>
+        {startBatch}
+      </div>
     );
   }
 
   return (
     <>
+      <div className="mb-4 flex justify-end text-right">{startBatch}</div>
       {list.data.length === BATCHES_LIMIT && (
         <p className="mb-2 text-sm text-muted-foreground">
           Showing {BATCHES_LIMIT} batches: running ones first, then the newest.
