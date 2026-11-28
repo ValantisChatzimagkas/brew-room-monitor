@@ -4,13 +4,13 @@ import Link from "next/link";
 import { type FormEvent, startTransition, useActionState, useState } from "react";
 
 import { registerDevice } from "@/app/devices/new/actions";
-import { DeviceToken, FIRMWARE_DOCS, useResetOnHide } from "@/components/device-token";
+import { DeviceToken, useResetOnHide } from "@/components/device-token";
 import { type Room, RoomField } from "@/components/room-field";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { NEW_ROOM } from "@/lib/devices";
+import { FIRMWARE_DOCS, NEW_ROOM } from "@/lib/devices";
 
 /**
  * Form that registers a device and then shows its token once. The token lives only in the inner form's
@@ -37,7 +37,7 @@ function OpenForm({ rooms, onReset }: { rooms: Room[]; onReset: () => void }) {
         </p>
         <DeviceToken token={created.token} />
         <div className="flex flex-wrap gap-2">
-          <Link href={`/devices/${created.id}`} className={buttonVariants({ variant: "outline" })}>
+          <Link href={`/devices/${created.id}`} className={buttonVariants()}>
             Open {created.name}
           </Link>
           <Link href="/" className={buttonVariants({ variant: "outline" })}>
@@ -51,7 +51,7 @@ function OpenForm({ rooms, onReset }: { rooms: Room[]; onReset: () => void }) {
           >
             How to flash it
           </a>
-          <Button onClick={onReset}>Register another</Button>
+          <Button variant="outline" onClick={onReset}>Register another</Button>
         </div>
       </div>
     );
