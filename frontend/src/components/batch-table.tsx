@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { ReadingTime } from "@/components/reading-time";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { YeastStatusBadge } from "@/components/yeast-status";
 import type { Batch, Device } from "@/lib/api/client";
@@ -48,16 +47,13 @@ export function BatchTable({
                 </TableCell>
                 {showDevice && <TableCell>{devices.get(b.device_id)?.name ?? `Device ${b.device_id}`}</TableCell>}
                 <TableCell>
-                  <ReadingTime iso={b.started_at}>{formatAge(new Date(b.started_at), now)}</ReadingTime>
+                  {formatAge(new Date(b.started_at), now)}
                 </TableCell>
                 <TableCell>
                   {b.ended_at === null ? (
                     <span className="text-primary">Running</span>
                   ) : (
-                    <>
-                      {"Ended "}
-                      <ReadingTime iso={b.ended_at}>{formatAge(new Date(b.ended_at), now)}</ReadingTime>
-                    </>
+                    `Ended ${formatAge(new Date(b.ended_at), now)}`
                   )}
                 </TableCell>
                 <TableCell>

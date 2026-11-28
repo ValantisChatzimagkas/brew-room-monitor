@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
-import { ReadingTime } from "@/components/reading-time";
+import { LocalDateTime } from "@/components/local-date-time";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { WaitingForReading } from "@/components/waiting-for-reading";
@@ -97,8 +97,8 @@ function DeviceCard({ device, latest, now }: { device: Device; latest: Reading[]
             </h3>
             {status === "stale" && <span className="text-sm font-normal text-stale">Stale</span>}
             {device.revoked_at && (
-              <span className="text-sm font-normal text-destructive">
-                <ReadingTime iso={device.revoked_at}>Revoked {formatAge(new Date(device.revoked_at), now)}</ReadingTime>
+              <span className="text-sm font-normal text-muted-foreground">
+                Revoked <LocalDateTime iso={device.revoked_at} />
               </span>
             )}
           </CardTitle>
@@ -116,7 +116,7 @@ function DeviceCard({ device, latest, now }: { device: Device; latest: Reading[]
                   <dt className="text-muted-foreground">{METRIC_INFO[r.metric].label}</dt>
                   <dd className="tabular-nums">{formatValue(r.metric, r.value)}</dd>
                   <dd className={status === "stale" ? "text-stale" : "text-muted-foreground"}>
-                    <ReadingTime iso={r.recorded_at}>{formatAge(new Date(r.recorded_at), now)}</ReadingTime>
+                    {formatAge(new Date(r.recorded_at), now)}
                   </dd>
                 </div>
               ))}

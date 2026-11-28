@@ -5,9 +5,9 @@ import { Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
 import { BatchTable } from "@/components/batch-table";
+import { LocalDateTime } from "@/components/local-date-time";
 import { MetricChart } from "@/components/metric-chart";
 import { PartialNotice } from "@/components/partial-notice";
-import { ReadingTime } from "@/components/reading-time";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WaitingForReading } from "@/components/waiting-for-reading";
@@ -26,7 +26,6 @@ import {
 import { DEVICE_KIND_LABEL } from "@/lib/devices";
 import { METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
 import { deviceStatus } from "@/lib/status";
-import { formatAge } from "@/lib/time";
 
 const BATCHES_LIMIT = 10;
 
@@ -92,8 +91,8 @@ async function DeviceDetail({
           {DEVICE_KIND_LABEL[device.kind]} · {device.location?.name ?? "No room"}
         </p>
         {device.revoked_at !== null && (
-          <span className="text-destructive">
-            <ReadingTime iso={device.revoked_at}>Revoked {formatAge(new Date(device.revoked_at), now)}</ReadingTime>
+          <span className="text-muted-foreground">
+            Revoked <LocalDateTime iso={device.revoked_at} />
           </span>
         )}
         <div className="mt-4 flex flex-wrap gap-2">

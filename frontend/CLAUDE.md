@@ -42,7 +42,7 @@ Next 16 with `cacheComponents` on. APIs differ from older Next: check `node_modu
 ## Quality bar
 - `pnpm lint` (zero warnings), `pnpm typecheck`, `pnpm test`, `pnpm build` all pass (`make check-frontend`).
 - TypeScript strict; no `any`, no `as` casts to silence errors, no `@ts-ignore`.
-- Format numbers with units in the UI, timestamps converted to local time at render.
+- Format numbers with units in the UI. A relative time is plain `formatAge` text; an exact time renders through `LocalDateTime` (`src/components/local-date-time.tsx`) in the browser's timezone, never formatted on the server.
 
 ## Tests
 - Vitest runs pure helpers in `src/lib/*.test.ts` (`pnpm test`, part of `make check-frontend`). No component or snapshot tests.

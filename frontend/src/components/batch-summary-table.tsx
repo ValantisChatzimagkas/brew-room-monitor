@@ -1,4 +1,3 @@
-import { ReadingTime } from "@/components/reading-time";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { BatchDetail } from "@/lib/api/client";
 import { formatValue, inMetricOrder, METRIC_INFO } from "@/lib/metrics";
@@ -27,7 +26,7 @@ export function BatchSummaryTable({ metrics, now }: { metrics: BatchDetail["metr
             <TableCell className="tabular-nums">
               {formatValue(m.metric, m.latest_value)}{" "}
               <span className="text-muted-foreground">
-                <ReadingTime iso={m.latest_recorded_at}>{formatAge(new Date(m.latest_recorded_at), now)}</ReadingTime>
+                {formatAge(new Date(m.latest_recorded_at), now)}
               </span>
             </TableCell>
             <TableCell className="tabular-nums">{m.count}</TableCell>
