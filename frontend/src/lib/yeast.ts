@@ -1,5 +1,6 @@
 import type { BatchDetail, TemperatureNote, YeastFit } from "@/lib/api/client";
 import { formatValue } from "./metrics";
+import { NO_RECENT_DATA } from "./status";
 import { formatDuration, isStale } from "./time";
 
 type YeastSplitItem = { label: "below" | "inside" | "above"; seconds: number; flagged: boolean };
@@ -37,7 +38,7 @@ export const YEAST_STATUS_LABEL: Record<YeastStatus, string> = {
   in_range: "In range",
   too_warm: "Too warm",
   too_cold: "Too cold",
-  no_recent_data: "No recent data",
+  no_recent_data: NO_RECENT_DATA,
 };
 
 const STATUS_BY_POSITION = { below: "too_cold", inside: "in_range", above: "too_warm" } as const;

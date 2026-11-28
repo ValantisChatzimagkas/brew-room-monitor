@@ -77,8 +77,14 @@ export async function findDevice(id: number): Promise<Device | undefined> {
   return (await listDevices()).find((d) => d.id === id);
 }
 
+/** A batch's yeast status and when its newest temperature reading was taken (`null`: it has none). */
+export type BatchYeastStatus = { status: YeastStatus; lastReadingAt: string | null };
+
 /** Each batch's yeast status by id; a batch without one (ended, no range, or no status) is missing. */
-export async function yeastStatuses(batches: readonly Batch[], now: Date): Promise<Map<number, YeastStatus>> {
+export async function yeastStatuses(
+  batches: readonly Batch[],
+  now: Date,
+): Promise<Map<number, BatchYeastStatus>> {
   const api = await getApi();
   // Only a running batch with a range can have a status, so only those need the detail (its newest reading).
   const details = await Promise.all(
@@ -90,10 +96,11 @@ export async function yeastStatuses(batches: readonly Batch[], now: Date): Promi
         return result.data;
       }),
   );
-  const statuses = new Map<number, YeastStatus>();
+  const statuses = new Map<number, BatchYeastStatus>();
   for (const detail of details) {
     const status = yeastStatus(detail, now);
-    if (status !== null) statuses.set(detail.id, status);
+    const temperature = detail.metrics.find((m) => m.metric === "temperature_c");
+    if (status !== null) statuses.set(detail.id, { status, lastReadingAt: temperature?.latest_recorded_at ?? null });
   }
   return statuses;
 }

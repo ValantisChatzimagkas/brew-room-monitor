@@ -10,7 +10,7 @@ import { getApi, type Device, type Reading } from "@/lib/api/client";
 import { DEVICE_KIND_LABEL } from "@/lib/devices";
 import { formatValue, METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
 import { groupByRoom } from "@/lib/rooms";
-import { deviceStatus } from "@/lib/status";
+import { deviceStatus, noRecentDataText } from "@/lib/status";
 import { formatAge } from "@/lib/time";
 
 export default function Home() {
@@ -95,7 +95,9 @@ function DeviceCard({ device, latest, now }: { device: Device; latest: Reading[]
                 {device.name}
               </Link>
             </h3>
-            {status === "stale" && <span className="text-sm font-normal text-stale">Stale</span>}
+            {status === "stale" && (
+              <span className="text-sm font-normal text-stale">{noRecentDataText(latest, now)}</span>
+            )}
             {device.revoked_at && (
               <span className="text-sm font-normal text-muted-foreground">
                 Revoked <LocalDateTime iso={device.revoked_at} />
@@ -115,7 +117,7 @@ function DeviceCard({ device, latest, now }: { device: Device; latest: Reading[]
                 <div key={r.metric} className="contents">
                   <dt className="text-muted-foreground">{METRIC_INFO[r.metric].label}</dt>
                   <dd className="tabular-nums">{formatValue(r.metric, r.value)}</dd>
-                  <dd className={status === "stale" ? "text-stale" : "text-muted-foreground"}>
+                  <dd className="text-muted-foreground">
                     {formatAge(new Date(r.recorded_at), now)}
                   </dd>
                 </div>
