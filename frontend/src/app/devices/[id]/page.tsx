@@ -1,21 +1,20 @@
+import { Settings } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
-import { BatchSummaryTable } from "@/components/batch-summary-table";
-import { BatchYeast } from "@/components/batch-yeast";
+import { BatchTable } from "@/components/batch-table";
 import { MetricChart } from "@/components/metric-chart";
 import { PartialNotice } from "@/components/partial-notice";
 import { ReadingTime } from "@/components/reading-time";
-import { RekeyDeviceForm } from "@/components/rekey-device-form";
-import { RevokeDeviceForm } from "@/components/revoke-device-form";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { YeastStatusBadge } from "@/components/yeast-status";
-import { type BatchDetail, findDevice, getApi } from "@/lib/api/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { WaitingForReading } from "@/components/waiting-for-reading";
+import { type Batch, type Device, findDevice, getApi, yeastStatuses } from "@/lib/api/client";
 import {
   blockingBatch,
+  breakGaps,
   DEFAULT_RANGE,
   parseId,
   parseRange,
@@ -25,8 +24,8 @@ import {
   toPoints,
 } from "@/lib/history";
 import { METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
+import { deviceStatus } from "@/lib/status";
 import { formatAge } from "@/lib/time";
-import { AMBIENT_CAVEAT, yeastStatus } from "@/lib/yeast";
 
 const BATCHES_LIMIT = 10;
 
@@ -60,16 +59,29 @@ async function DeviceDetail({
   const device = await findDevice(id);
   if (!device) notFound();
 
-  const results = await Promise.all(
-    METRIC_ORDER.map(async (metric) => {
-      const result = await api.GET("/api/v1/readings", {
-        params: { query: { device_id: id, metric, since: since.toISOString(), limit: READINGS_LIMIT } },
-      });
-      if (result.error) throw new Error("Failed to load data from the API");
-      return { metric, rows: result.data };
-    }),
-  );
+  const [results, batchList] = await Promise.all([
+    Promise.all(
+      METRIC_ORDER.map(async (metric) => {
+        const result = await api.GET("/api/v1/readings", {
+          params: { query: { device_id: id, metric, since: since.toISOString(), limit: READINGS_LIMIT } },
+        });
+        if (result.error) throw new Error("Failed to load data from the API");
+        return { metric, rows: result.data };
+      }),
+    ),
+    api.GET("/api/v1/batches", { params: { query: { device_id: id, limit: BATCHES_LIMIT } } }),
+  ]);
+  if (batchList.error) throw new Error("Failed to load data from the API");
+  const canStart = device.revoked_at === null && blockingBatch(batchList.data)?.ended_at !== null;
   const withRows = results.filter(({ rows }) => rows.length > 0);
+
+  // An empty range can still hide older readings: only a device with none at all is waiting for its first.
+  let waiting = false;
+  if (withRows.length === 0) {
+    const newest = await api.GET("/api/v1/readings", { params: { query: { device_id: id, limit: 1 } } });
+    if (newest.error) throw new Error("Failed to load data from the API");
+    waiting = deviceStatus(device, newest.data, now) === "waiting";
+  }
 
   return (
     <>
@@ -84,28 +96,32 @@ async function DeviceDetail({
           </span>
         )}
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link href={`/devices/${id}/edit`} className={buttonVariants({ variant: "outline" })}>
-            Edit
-          </Link>
-          {/* Always rendered: the refresh() after a re-key clears `revoked_at`, and remounting this form would
-              drop the new token on screen. */}
-          <RekeyDeviceForm deviceId={id} deviceName={device.name} />
-          {device.revoked_at === null && <RevokeDeviceForm deviceId={id} deviceName={device.name} />}
-        </div>
-        <nav aria-label="Time range" className="mt-4 flex gap-2">
-          {RANGES.map((r) => (
-            <Link
-              key={r}
-              href={`/devices/${id}?range=${r}`}
-              aria-current={r === range ? "page" : undefined}
-              className={buttonVariants({ variant: r === range ? "default" : "outline", size: "sm" })}
-            >
-              {r}
+          {canStart && (
+            <Link href={`/devices/${id}/batches/new`} className={buttonVariants()}>
+              Start batch
             </Link>
-          ))}
-        </nav>
+          )}
+          <Link href={`/devices/${id}/settings`} className={buttonVariants({ variant: "outline" })}>
+            <Settings aria-hidden="true" />
+            Settings
+          </Link>
+        </div>
       </header>
-      {withRows.length === 0 ? (
+      <nav aria-label="Time range" className="mb-4 flex gap-2">
+        {RANGES.map((r) => (
+          <Link
+            key={r}
+            href={`/devices/${id}?range=${r}`}
+            aria-current={r === range ? "page" : undefined}
+            className={buttonVariants({ variant: r === range ? "default" : "outline", size: "sm" })}
+          >
+            {r}
+          </Link>
+        ))}
+      </nav>
+      {waiting ? (
+        <WaitingForReading />
+      ) : withRows.length === 0 ? (
         <p className="text-muted-foreground">No readings in the last {range}.</p>
       ) : (
         <div className="grid gap-6">
@@ -118,7 +134,7 @@ async function DeviceDetail({
               </CardHeader>
               <CardContent>
                 <PartialNotice count={rows.length} where="in this range" />
-                <MetricChart metric={metric} points={toPoints(rows)} from={since.getTime()} to={now.getTime()} />
+                <MetricChart metric={metric} points={breakGaps(toPoints(rows))} from={since.getTime()} to={now.getTime()} />
               </CardContent>
             </Card>
           ))}
@@ -127,12 +143,7 @@ async function DeviceDetail({
       <section className="mt-8">
         <h2 className="mb-3 text-lg font-medium">Batches</h2>
         <Suspense fallback={<p className="text-muted-foreground">Loading batches…</p>}>
-          <DeviceBatches
-            deviceId={id}
-            now={now}
-            revoked={device.revoked_at !== null}
-            ambient={device.kind === "ambient"}
-          />
+          <DeviceBatches device={device} batches={batchList.data} canStart={canStart} now={now} />
         </Suspense>
       </section>
     </>
@@ -140,97 +151,47 @@ async function DeviceDetail({
 }
 
 async function DeviceBatches({
-  deviceId,
+  device,
+  batches,
+  canStart,
   now,
-  revoked,
-  ambient,
 }: {
-  deviceId: number;
+  device: Pick<Device, "id" | "name" | "kind">;
+  batches: readonly Batch[];
+  canStart: boolean;
   now: Date;
-  revoked: boolean;
-  ambient: boolean;
 }) {
-  const api = await getApi();
-  const list = await api.GET("/api/v1/batches", {
-    params: { query: { device_id: deviceId, limit: BATCHES_LIMIT } },
-  });
-  if (list.error) throw new Error("Failed to load data from the API");
-  const canStart = !revoked && blockingBatch(list.data)?.ended_at !== null;
+  const statuses = await yeastStatuses(batches, now);
 
-  const batches = await Promise.all(
-    list.data.map(async ({ id }) => {
-      const result = await api.GET("/api/v1/batches/{batch_id}", { params: { path: { batch_id: id } } });
-      if (result.error) throw new Error("Failed to load data from the API");
-      return result.data;
-    }),
-  );
+  if (batches.length === 0) {
+    return (
+      <p className="text-muted-foreground">
+        No batches yet.
+        {canStart && (
+          <>
+            {" "}
+            <Link href={`/devices/${device.id}/batches/new`} className="underline">
+              Start the first batch
+            </Link>
+            .
+          </>
+        )}
+      </p>
+    );
+  }
 
   return (
     <>
-      {canStart && (
-        <div className="mb-3">
-          <Link href={`/devices/${deviceId}/batches/new`} className={buttonVariants({ size: "sm" })}>
-            Start batch
-          </Link>
-        </div>
-      )}
-      {batches.length === 0 && <p className="text-muted-foreground">No batches yet</p>}
       {batches.length === BATCHES_LIMIT && (
         <p className="mb-2 text-sm text-muted-foreground">Showing the newest {BATCHES_LIMIT} batches.</p>
       )}
-      <div className="grid gap-6">
-        {batches.map((batch) => (
-          <BatchCard key={batch.id} batch={batch} now={now} ambient={ambient} />
-        ))}
-      </div>
+      <BatchTable
+        batches={batches}
+        statuses={statuses}
+        devices={new Map([[device.id, { name: device.name, kind: device.kind }]])}
+        showDevice={false}
+        now={now}
+      />
     </>
-  );
-}
-
-function BatchCard({ batch, now, ambient }: { batch: BatchDetail; now: Date; ambient: boolean }) {
-  const status = yeastStatus(batch, now);
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between gap-2">
-          <h3>
-            <Link href={`/batches/${batch.id}`} className="hover:underline">
-              {batch.name}
-            </Link>
-          </h3>
-          {batch.ended_at === null && (
-            <span className="text-sm font-normal">
-              <span className="text-primary">Running</span>
-              {status !== null && (
-                <>
-                  {" · "}
-                  <YeastStatusBadge status={status} ambient={ambient} />
-                </>
-              )}
-            </span>
-          )}
-        </CardTitle>
-        <CardDescription>
-          Started <ReadingTime iso={batch.started_at}>{formatAge(new Date(batch.started_at), now)}</ReadingTime>
-          {batch.ended_at === null ? (
-            " · running"
-          ) : (
-            <>
-              {" · ended "}
-              <ReadingTime iso={batch.ended_at}>{formatAge(new Date(batch.ended_at), now)}</ReadingTime>
-            </>
-          )}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {status !== null && ambient && <p className="mb-2 text-sm text-muted-foreground">{AMBIENT_CAVEAT}</p>}
-        <BatchYeast batch={batch} />
-        {batch.metrics.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No readings in this batch&apos;s window.</p>
-        ) : (
-          <BatchSummaryTable metrics={batch.metrics} now={now} />
-        )}
-      </CardContent>
-    </Card>
   );
 }
