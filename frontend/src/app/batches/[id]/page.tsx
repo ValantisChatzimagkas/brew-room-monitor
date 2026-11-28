@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
+import { BatchCurrentState } from "@/components/batch-current-state";
 import { BatchNotes } from "@/components/batch-notes";
 import { BatchSummaryTable } from "@/components/batch-summary-table";
 import { BatchYeast } from "@/components/batch-yeast";
@@ -29,13 +30,13 @@ import {
 } from "@/lib/history";
 import { inMetricOrder, METRIC_INFO } from "@/lib/metrics";
 import { formatAge } from "@/lib/time";
-import { yeastRange } from "@/lib/yeast";
+import { yeastRange, yeastStatus } from "@/lib/yeast";
 
 export default function BatchPage({ params, searchParams }: PageProps<"/batches/[id]">) {
   return (
     <main className="mx-auto w-full max-w-4xl p-6">
-      <Link href="/" className="mb-4 inline-block text-sm text-muted-foreground hover:underline">
-        ← Dashboard
+      <Link href="/batches" className="mb-4 inline-block text-sm text-muted-foreground hover:underline">
+        ← Batches
       </Link>
       <Suspense fallback={<p className="text-muted-foreground">Loading batch…</p>}>
         <BatchDetailView params={params} searchParams={searchParams} />
@@ -84,6 +85,7 @@ async function BatchDetailView({
   ]);
   const withRows = results.filter(({ rows }) => rows.length > 0);
   const range = yeastRange(batch) ?? undefined;
+  const temperature = batch.metrics.find((m) => m.metric === "temperature_c");
 
   return (
     <>
@@ -104,39 +106,50 @@ async function BatchDetailView({
             {device?.name ?? `Device ${batch.device_id}`}
           </Link>
         </p>
-        <div className="mt-4 flex flex-wrap items-start gap-2">
-          <Link href={`/batches/${batch.id}/edit`} className={buttonVariants({ variant: "outline" })}>
+        <div className="mt-3 flex flex-wrap items-start gap-2">
+          <Link href={`/batches/${batch.id}/edit`} className={buttonVariants({ variant: "outline", size: "sm" })}>
             Edit
           </Link>
           {batch.ended_at === null && <EndBatchForm batchId={batch.id} />}
         </div>
-        <div className="mt-4">
-          <BatchYeast batch={batch} />
-          {range && <BatchNotes notes={batch.notes} range={range} ambient={device?.kind === "ambient"} />}
-        </div>
-        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
-          <nav aria-label="Period" className="flex gap-2">
-            {BATCH_PERIODS.map((p) => (
-              <PresetLink key={p} href={href(p, granularity)} active={p === period}>
-                {p === "whole" ? "Whole batch" : p}
-              </PresetLink>
-            ))}
-          </nav>
-          <nav aria-label="Granularity" className="flex gap-2">
-            {GRANULARITIES.map((g) =>
-              g !== "auto" && pickBucket(g, to - from) !== g ? (
-                <Button key={g} variant="outline" size="sm" disabled>
-                  {g}
-                </Button>
-              ) : (
-                <PresetLink key={g} href={href(period, g)} active={g === granularity}>
-                  {g === "auto" ? `Auto (${autoBucket(to - from)})` : g}
-                </PresetLink>
-              ),
-            )}
-          </nav>
-        </div>
       </header>
+      {batch.ended_at === null && (
+        <div className="mb-6">
+          <BatchCurrentState
+            status={yeastStatus(batch, now)}
+            temperature={
+              temperature === undefined
+                ? null
+                : { value: temperature.latest_value, recordedAt: temperature.latest_recorded_at }
+            }
+            range={yeastRange(batch)}
+            ambient={device?.kind === "ambient"}
+            now={now}
+          />
+        </div>
+      )}
+      <div className="mb-4 flex flex-wrap gap-x-6 gap-y-2">
+        <nav aria-label="Period" className="flex gap-2">
+          {BATCH_PERIODS.map((p) => (
+            <PresetLink key={p} href={href(p, granularity)} active={p === period}>
+              {p === "whole" ? "Whole batch" : p}
+            </PresetLink>
+          ))}
+        </nav>
+        <nav aria-label="Granularity" className="flex gap-2">
+          {GRANULARITIES.map((g) =>
+            g !== "auto" && pickBucket(g, to - from) !== g ? (
+              <Button key={g} variant="outline" size="sm" disabled>
+                {g}
+              </Button>
+            ) : (
+              <PresetLink key={g} href={href(period, g)} active={g === granularity}>
+                {g === "auto" ? `Auto (${autoBucket(to - from)})` : g}
+              </PresetLink>
+            ),
+          )}
+        </nav>
+      </div>
       {batch.metrics.length === 0 ? (
         <p className="text-muted-foreground">No readings in this batch&apos;s window.</p>
       ) : (
@@ -162,11 +175,17 @@ async function BatchDetailView({
               </Card>
             ))}
           </div>
-          <section className="mt-8">
-            <h2 className="mb-3 text-lg font-medium">Summary</h2>
-            <BatchSummaryTable metrics={batch.metrics} now={now} />
-          </section>
         </>
+      )}
+      <div className="mt-6">
+        <BatchYeast batch={batch} />
+        {range && <BatchNotes notes={batch.notes} range={range} ambient={device?.kind === "ambient"} />}
+      </div>
+      {batch.metrics.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-lg font-medium">Summary</h2>
+          <BatchSummaryTable metrics={batch.metrics} now={now} />
+        </section>
       )}
     </>
   );
@@ -177,7 +196,7 @@ function PresetLink({ href, active, children }: { href: string; active: boolean;
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={buttonVariants({ variant: active ? "default" : "outline", size: "sm" })}
+      className={buttonVariants({ variant: active ? "secondary" : "outline", size: "sm" })}
     >
       {children}
     </Link>

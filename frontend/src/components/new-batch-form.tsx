@@ -6,7 +6,7 @@ import { type FormEvent, startTransition, useActionState, useState, useSyncExter
 import { editBatch } from "@/app/batches/[id]/edit/actions";
 import { startBatch } from "@/app/devices/[id]/batches/new/actions";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { localInputToUtc, toLocalInput } from "@/lib/time";
 
@@ -105,32 +105,38 @@ function HydratedForm(props: Props) {
         />
         <FieldError>{errors.yeastName}</FieldError>
       </Field>
-      <Field data-invalid={errors.yeastMin !== undefined || undefined}>
-        <FieldLabel htmlFor="batch-yeast-min">Yeast min °C</FieldLabel>
-        <Input
-          id="batch-yeast-min"
-          type="number"
-          step="any"
-          inputMode="decimal"
-          value={yeastMin}
-          onChange={(e) => setYeastMin(e.target.value)}
-          aria-invalid={errors.yeastMin !== undefined || undefined}
-        />
-        <FieldError>{errors.yeastMin}</FieldError>
-      </Field>
-      <Field data-invalid={errors.yeastMax !== undefined || undefined}>
-        <FieldLabel htmlFor="batch-yeast-max">Yeast max °C</FieldLabel>
-        <Input
-          id="batch-yeast-max"
-          type="number"
-          step="any"
-          inputMode="decimal"
-          value={yeastMax}
-          onChange={(e) => setYeastMax(e.target.value)}
-          aria-invalid={errors.yeastMax !== undefined || undefined}
-        />
-        <FieldError>{errors.yeastMax}</FieldError>
-      </Field>
+      <FieldSet>
+        <FieldLegend variant="label">Yeast temperature range (optional)</FieldLegend>
+        <FieldDescription>Sets the &quot;Too warm&quot; / &quot;Too cold&quot; status.</FieldDescription>
+        <div className="grid grid-cols-2 gap-4">
+          <Field data-invalid={errors.yeastMin !== undefined || undefined}>
+            <FieldLabel htmlFor="batch-yeast-min">Min °C</FieldLabel>
+            <Input
+              id="batch-yeast-min"
+              type="number"
+              step="any"
+              inputMode="decimal"
+              value={yeastMin}
+              onChange={(e) => setYeastMin(e.target.value)}
+              aria-invalid={errors.yeastMin !== undefined || undefined}
+            />
+            <FieldError>{errors.yeastMin}</FieldError>
+          </Field>
+          <Field data-invalid={errors.yeastMax !== undefined || undefined}>
+            <FieldLabel htmlFor="batch-yeast-max">Max °C</FieldLabel>
+            <Input
+              id="batch-yeast-max"
+              type="number"
+              step="any"
+              inputMode="decimal"
+              value={yeastMax}
+              onChange={(e) => setYeastMax(e.target.value)}
+              aria-invalid={errors.yeastMax !== undefined || undefined}
+            />
+            <FieldError>{errors.yeastMax}</FieldError>
+          </Field>
+        </div>
+      </FieldSet>
       <FieldError>{errors.form}</FieldError>
       {conflict !== null && conflict.endedAt === null && (
         <FieldError>{conflictLink} is already running on this device.</FieldError>

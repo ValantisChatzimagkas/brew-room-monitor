@@ -14,6 +14,11 @@ export const DEFAULT_GRANULARITY: Granularity = "auto";
 
 /** API cap on `GET /readings` (`le=5000` in backend/app/routers/readings.py). */
 export const READINGS_LIMIT = 5000;
+/**
+ * How many batches the Batches page and the device chooser load. Running batches come first, so this holds
+ * every device's running batch (at most one each) and "can start" stays right.
+ */
+export const ALL_BATCHES_LIMIT = 100;
 /** API cap on `GET /readings/buckets` (`MAX_BUCKETS` in backend/app/routers/readings.py). */
 export const MAX_BUCKETS = 5000;
 /** Auto picks the finest bucket that keeps a chart at or under this many points. */
@@ -218,6 +223,34 @@ export function blockingBatch<B extends { started_at: string; ended_at: string |
   newestFirst: readonly B[],
 ): B | undefined {
   return newestFirst.find((b) => b.ended_at === null || Date.parse(b.ended_at) !== Date.parse(b.started_at));
+}
+
+/** Devices that can start a batch, in `devices` order: not revoked, and no running batch (voided batches don't block). */
+export function startableDevices<D extends { id: number; revoked_at: string | null }>(
+  devices: readonly D[],
+  newestFirst: readonly { device_id: number; started_at: string; ended_at: string | null }[],
+): D[] {
+  return devices.filter(
+    (d) => d.revoked_at === null && blockingBatch(newestFirst.filter((b) => b.device_id === d.id))?.ended_at !== null,
+  );
+}
+
+export type RunningBatch = { id: number; name: string; deviceName: string };
+
+/**
+ * The running batches that keep a device from starting one. A revoked device can't start a batch even once
+ * its batch ends, so its running batch isn't offered.
+ */
+export function runningBatches(
+  devices: readonly { id: number; name: string; revoked_at: string | null }[],
+  batches: readonly { id: number; name: string; device_id: number; ended_at: string | null }[],
+): RunningBatch[] {
+  const devicesById = new Map(devices.map((d) => [d.id, d]));
+  return batches.flatMap((b) => {
+    const device = devicesById.get(b.device_id);
+    if (b.ended_at !== null || device === undefined || device.revoked_at !== null) return [];
+    return [{ id: b.id, name: b.name, deviceName: device.name }];
+  });
 }
 
 /**

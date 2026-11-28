@@ -1,7 +1,6 @@
 import type { BatchDetail } from "@/lib/api/client";
-import { formatValue } from "@/lib/metrics";
 import { formatDuration } from "@/lib/time";
-import { yeastRange, yeastSplit } from "@/lib/yeast";
+import { formatYeastRange, yeastRange, yeastSplit } from "@/lib/yeast";
 
 /** The batch's yeast and, when it has a range, the time its readings spent below / inside / above it. */
 export function BatchYeast({ batch }: { batch: BatchDetail }) {
@@ -31,7 +30,7 @@ function YeastLine({ batch }: { batch: BatchDetail }) {
   if (range !== null) {
     return (
       <p>
-        Yeast: {name ?? "unnamed"} · {formatValue("temperature_c", range.min)} – {formatValue("temperature_c", range.max)}
+        Yeast: {name ?? "unnamed"} · {formatYeastRange(range)}
       </p>
     );
   }
