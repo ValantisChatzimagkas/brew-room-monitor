@@ -3,15 +3,13 @@ import { Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
 import { ReadingTime } from "@/components/reading-time";
-import { runningBatches, StartBatchLink } from "@/components/start-batch";
+import { StartBatchLink } from "@/components/start-batch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { YeastStatusBadge } from "@/components/yeast-status";
 import { getApi, listDevices } from "@/lib/api/client";
-import { startableDevices } from "@/lib/history";
+import { ALL_BATCHES_LIMIT, runningBatches, startableDevices } from "@/lib/history";
 import { formatAge } from "@/lib/time";
 import { AMBIENT_CAVEAT, yeastRange, type YeastStatus, yeastStatus } from "@/lib/yeast";
-
-const BATCHES_LIMIT = 100;
 
 export default function BatchesPage() {
   return (
@@ -29,7 +27,7 @@ async function BatchList() {
   const api = await getApi(); // must come before new Date(): it opts the render out of prerendering
   const now = new Date();
   const [list, devices] = await Promise.all([
-    api.GET("/api/v1/batches", { params: { query: { limit: BATCHES_LIMIT } } }),
+    api.GET("/api/v1/batches", { params: { query: { limit: ALL_BATCHES_LIMIT } } }),
     listDevices(),
   ]);
   if (list.error) throw new Error("Failed to load data from the API");
@@ -69,9 +67,9 @@ async function BatchList() {
   return (
     <>
       <div className="mb-4 flex justify-end text-right">{startBatch}</div>
-      {list.data.length === BATCHES_LIMIT && (
+      {list.data.length === ALL_BATCHES_LIMIT && (
         <p className="mb-2 text-sm text-muted-foreground">
-          Showing {BATCHES_LIMIT} batches: running ones first, then the newest.
+          Showing {ALL_BATCHES_LIMIT} batches: running ones first, then the newest.
         </p>
       )}
       <Table>

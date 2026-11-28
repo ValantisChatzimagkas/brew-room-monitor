@@ -1,24 +1,7 @@
 import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button";
-
-type RunningBatch = { id: number; name: string; deviceName: string };
-
-/**
- * The running batches that keep a device from starting one. A revoked device can't start a batch even once
- * its batch ends, so its running batch isn't offered.
- */
-export function runningBatches(
-  devices: readonly { id: number; name: string; revoked_at: string | null }[],
-  batches: readonly { id: number; name: string; device_id: number; ended_at: string | null }[],
-): RunningBatch[] {
-  const devicesById = new Map(devices.map((d) => [d.id, d]));
-  return batches.flatMap((b) => {
-    const device = devicesById.get(b.device_id);
-    if (b.ended_at !== null || device === undefined || device.revoked_at !== null) return [];
-    return [{ id: b.id, name: b.name, deviceName: device.name }];
-  });
-}
+import type { RunningBatch } from "@/lib/history";
 
 /** "Start batch": straight to the form when one device can start a batch, via the chooser when several can. */
 export function StartBatchLink({

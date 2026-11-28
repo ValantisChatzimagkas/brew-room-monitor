@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { CannotStartBatch, runningBatches } from "@/components/start-batch";
+import { CannotStartBatch } from "@/components/start-batch";
 import { getApi, listDevices } from "@/lib/api/client";
-import { startableDevices } from "@/lib/history";
+import { ALL_BATCHES_LIMIT, runningBatches, startableDevices } from "@/lib/history";
 
 export default function ChooseDevicePage() {
   return (
@@ -21,9 +21,8 @@ export default function ChooseDevicePage() {
 
 async function DeviceChoice() {
   const api = await getApi();
-  // Running batches come first, so the 100 newest hold every device's running batch (at most one each).
   const [list, devices] = await Promise.all([
-    api.GET("/api/v1/batches", { params: { query: { limit: 100 } } }),
+    api.GET("/api/v1/batches", { params: { query: { limit: ALL_BATCHES_LIMIT } } }),
     listDevices(),
   ]);
   if (list.error) throw new Error("Failed to load data from the API");

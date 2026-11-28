@@ -84,7 +84,7 @@ export function noteText(note: TemperatureNote, range: YeastRange): string {
       return `${duration} above ${temp(range.max)} late in fermentation. Not a fault: late warmth may help the yeast clean up diacetyl.`;
     case "in_range":
       // Not "the whole time": a reading's span is capped, so a sensor gap is not covered.
-      return `Every reading stayed within ${temp(range.min)} – ${temp(range.max)}.`;
+      return `Every reading stayed within ${formatYeastRange(range)}.`;
     default: {
       const unknown: never = note.code;
       throw new Error(`Unknown temperature note: ${String(unknown)}`);

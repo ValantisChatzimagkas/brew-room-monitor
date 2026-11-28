@@ -22,6 +22,7 @@ import {
   previousBatch,
   RANGES,
   rangeSince,
+  runningBatches,
   startableDevices,
   toBucketPoints,
   toPoints,
@@ -332,6 +333,27 @@ describe("startableDevices", () => {
     ["two startable devices keep their order", [b, a], [endedOn(1)], [b, a]],
   ])("%s", (_, devices, newestFirst, expected) => {
     expect(startableDevices(devices, newestFirst)).toEqual(expected);
+  });
+});
+
+describe("runningBatches", () => {
+  const brewer = { id: 1, name: "Brewer", revoked_at: null };
+  const revoked = { id: 2, name: "Old", revoked_at: "2026-01-01T00:00:00Z" };
+  const batch = (id: number, device_id: number, started_at: string, ended_at: string | null) => ({
+    id,
+    name: `Batch ${id}`,
+    device_id,
+    started_at,
+    ended_at,
+  });
+  it.each([
+    ["running on a device that isn't revoked", [batch(1, 1, "2026-01-10T00:00:00Z", null)], [{ id: 1, name: "Batch 1", deviceName: "Brewer" }]],
+    ["running on a revoked device", [batch(1, 2, "2026-01-10T00:00:00Z", null)], []],
+    ["ended", [batch(1, 1, "2026-01-05T00:00:00Z", "2026-01-08T00:00:00Z")], []],
+    ["voided", [batch(1, 1, "2026-01-12T00:00:00Z", "2026-01-12T00:00:00Z")], []],
+    ["running on a device not in the list", [batch(1, 9, "2026-01-10T00:00:00Z", null)], []],
+  ])("%s", (_, batches, expected) => {
+    expect(runningBatches([brewer, revoked], batches)).toEqual(expected);
   });
 });
 
