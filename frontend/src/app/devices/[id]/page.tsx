@@ -23,6 +23,7 @@ import {
   READINGS_LIMIT,
   toPoints,
 } from "@/lib/history";
+import { DEVICE_KIND_LABEL } from "@/lib/devices";
 import { METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
 import { deviceStatus } from "@/lib/status";
 import { formatAge } from "@/lib/time";
@@ -88,7 +89,7 @@ async function DeviceDetail({
       <header className="mb-6">
         <h1 className="text-2xl font-semibold">{device.name}</h1>
         <p className="text-muted-foreground">
-          {device.kind} · {device.location?.name ?? "No room"}
+          {DEVICE_KIND_LABEL[device.kind]} · {device.location?.name ?? "No room"}
         </p>
         {device.revoked_at !== null && (
           <span className="text-destructive">

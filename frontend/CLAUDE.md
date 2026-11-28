@@ -28,7 +28,7 @@ Next 16 with `cacheComponents` on. APIs differ from older Next: check `node_modu
 - At most one filled button per view, and it is the view's main action. Filled is the `default` variant of `Button` / `buttonVariants()`, which is also what no `variant` gives. A selected toggle or the current nav item uses another style.
 - Colour marks only what needs a response: out of range, no recent data, a warning about something that can't be undone (revoking a device, a token shown once). Every other state is plain or muted text. A coloured state also carries a word or symbol. Chart series and the yeast-range band are data, not status.
 - Nothing on hover alone: what a `Tooltip`, a `HoverCard`, a `title` or a hover reveal shows is also on the page, or reachable by tap and keyboard.
-- One word per concept: show a status, kind or metric with its label from `src/lib/` (`METRIC_INFO`, `YEAST_STATUS_LABEL`), and domain nouns (Device, Reading, Batch) with the root `CLAUDE.md` glossary terms. Never retype a label in a page or show a raw API value (`in_vessel`).
+- One word per concept: show a status, kind or metric with its label from `src/lib/` (`METRIC_INFO`, `YEAST_STATUS_LABEL`, `DEVICE_KIND_LABEL`), and domain nouns (Device, Reading, Batch) with the root `CLAUDE.md` glossary terms. Never retype a label in a page or show a raw API value (`in_vessel`).
 - An empty state says what will appear and offers the one action that fills it (`No devices yet. Register your first device`, a link). When only a device can fill it, say what will (`Appears once the device sends a reading`). Never an API path or a curl command.
 
 ## Design system (shadcn on Base UI)

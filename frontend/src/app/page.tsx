@@ -7,6 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { WaitingForReading } from "@/components/waiting-for-reading";
 import { getApi, type Device, type Reading } from "@/lib/api/client";
+import { DEVICE_KIND_LABEL } from "@/lib/devices";
 import { formatValue, METRIC_INFO, METRIC_ORDER } from "@/lib/metrics";
 import { groupByRoom } from "@/lib/rooms";
 import { deviceStatus } from "@/lib/status";
@@ -101,9 +102,7 @@ function DeviceCard({ device, latest, now }: { device: Device; latest: Reading[]
               </span>
             )}
           </CardTitle>
-          <CardDescription>
-            {device.kind}
-          </CardDescription>
+          <CardDescription>{DEVICE_KIND_LABEL[device.kind]}</CardDescription>
         </CardHeader>
         <CardContent>
           {status === "waiting" ? (
